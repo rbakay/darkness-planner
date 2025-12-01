@@ -6,6 +6,9 @@ const UI_STRINGS = {
   ru: window.DARK_LANG_RU
 };
 
+// Key for localStorage
+const STORAGE_KEY = 'darkness-planner-settings-v1';
+
 // Global UI settings
 const settings = {
   time24: true,
@@ -133,6 +136,101 @@ function updateSettingsFromUI() {
   settings.lang = langSel.value || 'en';
 }
 
+// Save all important settings to localStorage
+function saveSettingsToStorage() {
+  try {
+    const latVal = parseFloat(document.getElementById('lat').value) || 0;
+    const lonVal = parseFloat(document.getElementById('lon').value) || 0;
+    const fromSel = document.getElementById('filterFromHour');
+    const toSel = document.getElementById('filterToHour');
+    const durEl = document.getElementById('filterDuration');
+    const hideEl = document.getElementById('filterHide');
+    const hlEl = document.getElementById('filterHighlight');
+    const dowSel = document.getElementById('dowFilter');
+    const dateFormatSel = document.getElementById('dateFormat');
+    const langSel = document.getElementById('langSelect');
+    const time24El = document.getElementById('time24');
+
+    const data = {
+      lat: latVal,
+      lon: lonVal,
+      time24: !!time24El.checked,
+      dateFormat: dateFormatSel.value || 'DMY',
+      lang: langSel.value || 'en',
+      filterFromHour: parseInt(fromSel.value, 10) || 0,
+      filterToHour: parseInt(toSel.value, 10) || 0,
+      filterDuration: durEl.value || '0',
+      filterHide: !!hideEl.checked,
+      filterHighlight: !!hlEl.checked,
+      dowFilter: dowSel.value || ''
+    };
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (e) {
+    // If localStorage is unavailable, silently ignore
+  }
+}
+
+// Load settings from localStorage and apply to UI + settings object
+function loadSettingsFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+
+    if (typeof data.lat === 'number') {
+      document.getElementById('lat').value = data.lat.toFixed(4);
+    }
+    if (typeof data.lon === 'number') {
+      document.getElementById('lon').value = data.lon.toFixed(4);
+    }
+
+    const time24El = document.getElementById('time24');
+    const dateFormatSel = document.getElementById('dateFormat');
+    const langSel = document.getElementById('langSelect');
+    const fromSel = document.getElementById('filterFromHour');
+    const toSel = document.getElementById('filterToHour');
+    const durEl = document.getElementById('filterDuration');
+    const hideEl = document.getElementById('filterHide');
+    const hlEl = document.getElementById('filterHighlight');
+    const dowSel = document.getElementById('dowFilter');
+
+    if ('time24' in data) {
+      time24El.checked = !!data.time24;
+      settings.time24 = !!data.time24;
+    }
+    if (data.dateFormat) {
+      dateFormatSel.value = data.dateFormat;
+      settings.dateFormat = data.dateFormat;
+    }
+    if (data.lang) {
+      langSel.value = data.lang;
+      settings.lang = data.lang;
+    }
+
+    if (typeof data.filterFromHour === 'number') {
+      fromSel.value = String(data.filterFromHour);
+    }
+    if (typeof data.filterToHour === 'number') {
+      toSel.value = String(data.filterToHour);
+    }
+    if (typeof data.filterDuration !== 'undefined') {
+      durEl.value = String(data.filterDuration);
+    }
+    if ('filterHide' in data) {
+      hideEl.checked = !!data.filterHide;
+    }
+    if ('filterHighlight' in data) {
+      hlEl.checked = !!data.filterHighlight;
+    }
+    if (typeof data.dowFilter === 'string') {
+      dowSel.value = data.dowFilter;
+    }
+  } catch (e) {
+    // ignore malformed storage
+  }
+}
+
 function applyLanguage() {
   const lang = settings.lang;
   const L = UI_STRINGS[lang] || UI_STRINGS.en;
@@ -157,7 +255,8 @@ function applyLanguage() {
   document.getElementById('i_filterSubtitle').textContent = L.filterSubtitle;
   document.getElementById('i_labelFilterFrom').textContent = L.labelFilterFrom;
   document.getElementById('i_labelFilterTo').textContent = L.labelFilterTo;
-  document.getElementById('i_labelFilterDuration').textContent = L.labelFilterDuration;
+  document.getElementById('i_labelFilterDuration').textContent =
+    L.labelFilterDuration;
   document.getElementById('i_labelDowFilter').textContent = L.labelDowFilter;
 
   document.getElementById('i_dowEmpty').textContent = L.dowEmpty;
@@ -165,9 +264,11 @@ function applyLanguage() {
   document.getElementById('i_dowFriSatSun').textContent = L.dowFriSatSun;
   document.getElementById('i_dowSatSun').textContent = L.dowSatSun;
 
-  document.getElementById('i_labelDisplayOptions').textContent = L.labelDisplayOptions;
+  document.getElementById('i_labelDisplayOptions').textContent =
+    L.labelDisplayOptions;
   document.getElementById('i_filterHideLabel').textContent = L.filterHideLabel;
-  document.getElementById('i_filterHighlightLabel').textContent = L.filterHighlightLabel;
+  document.getElementById('i_filterHighlightLabel').textContent =
+    L.filterHighlightLabel;
   document.getElementById('i_filterHint').textContent = L.filterHint;
 
   document.getElementById('i_blockDarkTitle').textContent = L.blockDarkTitle;
@@ -328,8 +429,8 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
     const lst = gmst + lonRad;
     const H = lst - ra;
 
-    const sinAlt = sinLat * Math.sin(dec) +
-      cosLat * Math.cos(dec) * Math.cos(H);
+    const sinAlt =
+      sinLat * Math.sin(dec) + cosLat * Math.cos(dec) * Math.cos(H);
     const alt = Math.asin(sinAlt);
 
     const nowDark = alt < 0;
@@ -359,7 +460,11 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
 function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   const sun = getSunTimesForNight(baseDate, latDeg, lonDeg);
   const { mid0, mid1, sunset, sunrise } = sun;
-  const result = { rises: [], sets: [], flags: { alwaysAbove: false, alwaysBelow: false } };
+  const result = {
+    rises: [],
+    sets: [],
+    flags: { alwaysAbove: false, alwaysBelow: false }
+  };
 
   if (!sunset || !sunrise) return result;
 
@@ -447,7 +552,9 @@ function updateSelectedNight(baseDate, lat, lon) {
   const darkNoteEl = document.getElementById('darknessNote');
   const filterInfoEl = document.getElementById('filterInfo');
 
-  titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(baseDate)} → ${fmtDate(nightEnd)}`;
+  titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(
+    baseDate
+  )} → ${fmtDate(nightEnd)}`;
 
   const sun = getSunTimesForNight(baseDate, lat, lon);
   sunInfoEl.innerHTML = '';
@@ -487,16 +594,16 @@ function updateSelectedNight(baseDate, lat, lon) {
   } else {
     if (moonNight.rises.length > 0) {
       const li = document.createElement('li');
-      const parts = moonNight.rises.map(d =>
-        `(${fmtDateShort(d)}) — ${fmtTime(d)}`
+      const parts = moonNight.rises.map(
+        d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`
       );
       li.textContent = L.moonRisePrefix + parts.join(', ');
       moonInfoEl.appendChild(li);
     }
     if (moonNight.sets.length > 0) {
       const li = document.createElement('li');
-      const parts = moonNight.sets.map(d =>
-        `(${fmtDateShort(d)}) — ${fmtTime(d)}`
+      const parts = moonNight.sets.map(
+        d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`
       );
       li.textContent = L.moonSetPrefix + parts.join(', ');
       moonInfoEl.appendChild(li);
@@ -591,9 +698,19 @@ function updateSelectedNight(baseDate, lat, lon) {
     }
     if (hasTimeFilter) {
       if (timeOkThis) {
-        text += `${L.filterTimeOkPrefix}${fmtDuration(matchMinutes)}${L.filterTimeOkSuffix}${fmtDuration(filter.minMinutes)}${L.filterTimeClose}`;
+        text +=
+          L.filterTimeOkPrefix +
+          fmtDuration(matchMinutes) +
+          L.filterTimeOkSuffix +
+          fmtDuration(filter.minMinutes) +
+          L.filterTimeClose;
       } else {
-        text += `${L.filterTimeNotOkPrefix}${fmtDuration(matchMinutes)}${L.filterTimeNotOkSuffix}${fmtDuration(filter.minMinutes)}${L.filterTimeClose}`;
+        text +=
+          L.filterTimeNotOkPrefix +
+          fmtDuration(matchMinutes) +
+          L.filterTimeNotOkSuffix +
+          fmtDuration(filter.minMinutes) +
+          L.filterTimeClose;
       }
     }
   }
@@ -602,7 +719,11 @@ function updateSelectedNight(baseDate, lat, lon) {
   for (let i = 1; i <= 30; i++) {
     const d = shiftDays(baseDate, i);
     const darkNext = getFullDarknessForNight(d, lat, lon);
-    if (!darkNext.sun.astrStart || !darkNext.sun.astrEnd || darkNext.darknessIntervals.length === 0) {
+    if (
+      !darkNext.sun.astrStart ||
+      !darkNext.sun.astrEnd ||
+      darkNext.darknessIntervals.length === 0
+    ) {
       continue;
     }
     const dow = d.getDay();
@@ -630,7 +751,9 @@ function updateSelectedNight(baseDate, lat, lon) {
       const mmText = hasTimeFilter
         ? `, темнота ${fmtDuration(found.minutes)}`
         : '';
-      text += `${L.nextNightPrefix}${when} (${fmtDate(found.date)}${mmText}).`;
+      text += `${L.nextNightPrefix}${when} (${fmtDate(
+        found.date
+      )}${mmText}).`;
     } else {
       if (found.daysAhead === 1) when = L.nextNightTomorrow;
       else if (found.daysAhead === 2) when = L.nextNightAfter;
@@ -638,7 +761,9 @@ function updateSelectedNight(baseDate, lat, lon) {
       const mmText = hasTimeFilter
         ? `, darkness ${fmtDuration(found.minutes)}`
         : '';
-      text += `${L.nextNightPrefix}${when} (${fmtDate(found.date)}${mmText}).`;
+      text += `${L.nextNightPrefix}${when} (${fmtDate(
+        found.date
+      )}${mmText}).`;
     }
   } else {
     text += L.nextNone;
@@ -668,7 +793,8 @@ function updateFutureTable(startDate, lat, lon) {
     if (data.darknessIntervals.length > 0) {
       darkText = formatIntervals(data.darknessIntervals);
     }
-    const totalText = data.totalMinutes > 0 ? fmtDuration(data.totalMinutes) : '—';
+    const totalText =
+      data.totalMinutes > 0 ? fmtDuration(data.totalMinutes) : '—';
 
     const dow = base.getDay();
     let weekendLabel = '';
@@ -680,7 +806,9 @@ function updateFutureTable(startDate, lat, lon) {
       <td class="night-col">
         ${fmtDate(base)}
         ${weekendLabel ? `<span class="weekend-label">${weekendLabel}</span>` : ''}
-        <span class="night-date">${L.nightPrefix}${fmtDateShort(base)} → ${fmtDateShort(shiftDays(base, 1))}</span>
+        <span class="night-date">${L.nightPrefix}${fmtDateShort(
+          base
+        )} → ${fmtDateShort(shiftDays(base, 1))}</span>
       </td>
       <td>${darkText}</td>
       <td>${totalText}</td>
@@ -693,11 +821,16 @@ function updateFutureTable(startDate, lat, lon) {
     const cells = tr.querySelectorAll('td');
     cells.forEach(td => td.classList.remove('filter-match-cell'));
 
-    const dayMatch = !filter.allowedDays || filter.allowedDays.includes(dow);
+    const dayMatch =
+      !filter.allowedDays || filter.allowedDays.includes(dow);
     let timeMatch = true;
 
     if (hasTimeFilter) {
-      const mm = getFilterOverlapMinutes(base, data.darknessIntervals, filter);
+      const mm = getFilterOverlapMinutes(
+        base,
+        data.darknessIntervals,
+        filter
+      );
       timeMatch = mm >= filter.minMinutes;
     }
 
@@ -737,6 +870,9 @@ function recalcAll() {
   }
   updateSelectedNight(baseDate, lat, lon);
   updateFutureTable(baseDate, lat, lon);
+
+  // Persist settings after each recalculation
+  saveSettingsToStorage();
 }
 
 // ---------- Initialization ----------
@@ -797,8 +933,10 @@ function initEvents() {
     }
     navigator.geolocation.getCurrentPosition(
       pos => {
-        document.getElementById('lat').value = pos.coords.latitude.toFixed(4);
-        document.getElementById('lon').value = pos.coords.longitude.toFixed(4);
+        document.getElementById('lat').value =
+          pos.coords.latitude.toFixed(4);
+        document.getElementById('lon').value =
+          pos.coords.longitude.toFixed(4);
         recalcAll();
       },
       () => {
@@ -807,6 +945,7 @@ function initEvents() {
     );
   });
 
+  // Whenever user changes UI, recalc and save settings
   document.getElementById('time24').addEventListener('change', recalcAll);
   document.getElementById('dateFormat').addEventListener('change', recalcAll);
   document.getElementById('langSelect').addEventListener('change', recalcAll);
@@ -816,6 +955,10 @@ function initEvents() {
   document.getElementById('filterHide').addEventListener('change', recalcAll);
   document.getElementById('filterHighlight').addEventListener('change', recalcAll);
   document.getElementById('dowFilter').addEventListener('change', recalcAll);
+
+  document.getElementById('lat').addEventListener('change', recalcAll);
+  document.getElementById('lon').addEventListener('change', recalcAll);
+  document.getElementById('startDate').addEventListener('change', recalcAll);
 }
 
 // ---------- PWA: service worker ----------
@@ -834,8 +977,9 @@ function registerServiceWorker() {
 window.addEventListener('DOMContentLoaded', () => {
   initStartDate();
   initFilterTimeSelects();
-  initSettingsAccordion();
+  loadSettingsFromStorage();  // apply saved values to UI + settings
   applyLanguage();
+  initSettingsAccordion();
   initEvents();
   recalcAll();
   registerServiceWorker();
