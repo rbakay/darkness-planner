@@ -82,5 +82,5 @@ window.DARK_LANG_RU = {
     'В ближайшие 30 ночей подходящих вариантов по фильтру не найдено.',
   geoNotSupported: 'Браузер не поддерживает геолокацию.',
   geoFailed: 'Не удалось получить координаты.',
-  versionLabel: 'Darkness Planner · v1.0'
+  versionLabel: 'Darkness Planner · v1.1'
 };
