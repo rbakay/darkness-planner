@@ -4,7 +4,7 @@
   --bg-elevated: #0c1021;
   --bg-elevated-2: #141828;
   --border: #262a3c;
-  --accent: #7c5cff;
+  --accent: #6a8dff;
   --accent-soft: rgba(124, 92, 255, 0.16);
   --text-main: #f5f7ff;
   --text-muted: #9aa0be;
@@ -139,6 +139,7 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 8px;
+  align-items: flex-end; /* align fields nicely in one row */
 }
 
 .field {
@@ -192,17 +193,19 @@ button {
   border-radius: 999px;
   border: none;
   padding: 8px 18px;
-  background: linear-gradient(135deg, #7c5cff, #ff6bbb);
+  background: linear-gradient(135deg, #4ea0ff, #a57bff);
   color: #ffffff;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
   white-space: nowrap;
+  transition: transform 0.05s ease, box-shadow 0.05s ease,
+    filter 0.1s ease;
 }
 
 button:hover {
-  filter: brightness(1.05);
+  filter: brightness(1.06);
 }
 
 button:active {
