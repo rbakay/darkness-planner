@@ -1,5 +1,6 @@
 // Service Worker for Darkness Planner
-const CACHE_NAME = 'darkness-planner-v1';
+const CACHE_NAME = 'darkness-planner-v1.1';
+
 const ASSETS = [
   './',
   './index.html',
@@ -9,7 +10,7 @@ const ASSETS = [
   './lang-ru.js',
   './StarJs.min.js',
   './manifest.webmanifest'
-  // Иконки можно добавить позже:
+  // Icons can be added later, for example:
   // './dark-192.png',
   // './dark-512.png'
 ];
@@ -36,8 +37,6 @@ self.addEventListener('activate', event => {
 
 self.addEventListener('fetch', event => {
   const request = event.request;
-
-  // Only handle GET
   if (request.method !== 'GET') return;
 
   event.respondWith(
@@ -45,7 +44,7 @@ self.addEventListener('fetch', event => {
       if (cached) {
         return cached;
       }
-      return fetch(request).catch(() => cached);
+      return fetch(request);
     })
   );
 });
