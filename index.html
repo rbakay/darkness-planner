@@ -3,261 +3,205 @@
 <head>
   <meta charset="UTF-8" />
   <title>Darkness Planner</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Mobile / PWA basics -->
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#050814" />
+  <!-- Status / system colors for PWA -->
+  <meta name="theme-color" content="#050814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- iOS PWA hints -->
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Darkness Planner" />
-
-  <!-- Manifest & icons (adjust paths/icons as you wish) -->
-  <link rel="manifest" href="dark-manifest.webmanifest" />
-  <link rel="icon" type="image/png" href="icons/icon-192.png" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <!-- PWA manifest -->
+  <link rel="manifest" href="manifest.webmanifest" />
 
   <!-- Styles -->
   <link rel="stylesheet" href="dark.css" />
+
+  <!-- StarJS (local file) -->
+  <script src="StarJs.min.js"></script>
+
+  <!-- SunCalc – used for Moon phase and illumination -->
+  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
+
+  <!-- Language packs -->
+  <script src="lang-en.js"></script>
+  <script src="lang-ru.js"></script>
+
+  <!-- Main application logic -->
+  <script defer src="dark.js"></script>
 </head>
 <body>
   <div class="layout">
-    <!-- SETTINGS CARD -->
-    <section class="card settings-card expanded" id="settingsCard">
-      <header class="settings-header">
+    <!-- SETTINGS (COLLAPSIBLE) -->
+    <div class="card settings-card collapsed" id="settingsCard">
+      <div class="settings-header">
         <div class="settings-title-block">
-          <div class="settings-title-main">Darkness Planner</div>
-          <div class="settings-title-sub" id="i_appSubtitle">
-            Location, night date and time/date formats.
+          <div class="settings-title-main" id="i_appTitle">Darkness Planner</div>
+          <div class="settings-title-sub" id="i_appSubtitle"></div>
+        </div>
+        <div class="menu-icon" id="menuIcon">
+          <div class="menu-icon-inner">
+            <div class="menu-icon-line"></div>
+            <div class="menu-icon-line"></div>
+            <div class="menu-icon-line"></div>
           </div>
         </div>
-
-        <!-- Hamburger icon -->
-        <button type="button" class="menu-icon" id="menuIcon" aria-label="Toggle settings">
-          <span class="menu-icon-inner">
-            <span class="menu-icon-line"></span>
-            <span class="menu-icon-line"></span>
-            <span class="menu-icon-line"></span>
-          </span>
-        </button>
-      </header>
-
-      <div class="subtitle" id="i_topHint">
-        Full darkness: astronomical night (Sun below −18°) while the Moon is below the horizon.
-        Night: selected date D → D+1 (for example, night 29→30).
       </div>
-
       <div class="settings-body">
-        <!-- Coordinates + date -->
+        <div class="subtitle" id="i_topHint"></div>
+
+        <!-- Coordinates + date + main buttons -->
         <div class="controls">
           <div class="field">
-            <label for="lat" id="i_labelLat">Latitude, ° (north +)</label>
-            <input type="number" id="lat" step="0.0001" />
+            <label for="lat" id="i_labelLat"></label>
+            <input id="lat" type="number" step="0.0001" value="35.2271">
           </div>
-
           <div class="field">
-            <label for="lon" id="i_labelLon">Longitude, ° (east + / west −)</label>
-            <input type="number" id="lon" step="0.0001" />
+            <label for="lon" id="i_labelLon"></label>
+            <input id="lon" type="number" step="0.0001" value="-80.8431">
           </div>
-
           <div class="field">
-            <label for="startDate" id="i_labelStartDate">Start date of night</label>
-            <input type="date" id="startDate" />
+            <label for="startDate" id="i_labelStartDate"></label>
+            <input id="startDate" type="date">
           </div>
+          <button id="btnGeo" type="button"></button>
+          <button id="btnCalc" type="button"></button>
         </div>
 
-        <!-- Buttons: My location + Recalculate -->
-        <div class="button-row">
-          <button type="button" id="btnGeo">My location</button>
-          <button type="button" id="btnCalc">Recalculate</button>
-        </div>
-
-        <!-- Time / date format -->
+        <!-- Time/date format + language -->
         <div class="controls">
           <div class="field">
-            <label id="i_labelTimeFormat">Time format</label>
+            <label id="i_labelTimeFormat"></label>
             <div class="toggle-line">
-              <input type="checkbox" id="time24" checked />
-              <span id="i_timeFormatHint">24 hours (off — AM/PM)</span>
+              <input id="time24" type="checkbox" checked>
+              <span id="i_timeFormatHint"></span>
             </div>
           </div>
-
           <div class="field">
-            <label for="dateFormat" id="i_labelDateFormat">Date format</label>
+            <label for="dateFormat" id="i_labelDateFormat"></label>
             <select id="dateFormat">
-              <option value="DMY">DD.MM.YYYY</option>
+              <option value="DMY" selected>DD.MM.YYYY</option>
               <option value="DMY2">DD.MM.YY</option>
               <option value="MDY">MM/DD/YYYY</option>
               <option value="YMD">YYYY-MM-DD</option>
             </select>
           </div>
-        </div>
-
-        <!-- Language -->
-        <div class="controls">
           <div class="field">
-            <label for="langSelect" id="i_labelLanguage">Language / Язык</label>
+            <label for="langSelect" id="i_labelLanguage"></label>
             <select id="langSelect">
-              <option value="en">English</option>
+              <option value="en" selected>English</option>
               <option value="ru">Русский</option>
             </select>
           </div>
         </div>
 
-        <!-- Filter block -->
-        <div class="subtitle" id="i_filterSubtitle">
-          Filter: find nights where the selected time window has at least the given amount of full
-          darkness.
-        </div>
+        <!-- Time filter and weekday filter -->
+        <div class="subtitle" style="margin-top: 4px;" id="i_filterSubtitle"></div>
 
         <div class="controls">
           <div class="field">
-            <label for="filterFromHour" id="i_labelFilterFrom">Time filter: from</label>
+            <label for="filterFromHour" id="i_labelFilterFrom"></label>
             <select id="filterFromHour"></select>
           </div>
-
           <div class="field">
-            <label for="filterToHour" id="i_labelFilterTo">Time filter: to</label>
+            <label for="filterToHour" id="i_labelFilterTo"></label>
             <select id="filterToHour"></select>
           </div>
-        </div>
-
-        <div class="controls">
           <div class="field">
-            <label for="filterDuration" id="i_labelFilterDuration">
-              Minimum darkness duration, hours
-            </label>
-            <input type="number" id="filterDuration" min="0" step="0.1" value="0" />
+            <label for="filterDuration" id="i_labelFilterDuration"></label>
+            <input id="filterDuration" type="number" min="0" step="0.5" value="0">
           </div>
-
           <div class="field">
-            <label for="dowFilter" id="i_labelDowFilter">Day-of-week filter</label>
+            <label for="dowFilter" id="i_labelDowFilter"></label>
             <select id="dowFilter">
-              <option value="" id="i_dowEmpty">Empty (all days)</option>
-              <option value="fri_sat" id="i_dowFriSat">Fri, Sat</option>
-              <option value="fri_sat_sun" id="i_dowFriSatSun">Fri, Sat, Sun</option>
-              <option value="sat_sun" id="i_dowSatSun">Sat, Sun</option>
+              <option value="" id="i_dowEmpty"></option>
+              <option value="fri_sat" id="i_dowFriSat"></option>
+              <option value="fri_sat_sun" id="i_dowFriSatSun"></option>
+              <option value="sat_sun" id="i_dowSatSun"></option>
             </select>
           </div>
-        </div>
-
-        <!-- Display options -->
-        <div class="subtitle" id="i_labelDisplayOptions">Display</div>
-
-        <div class="controls">
           <div class="field">
+            <label id="i_labelDisplayOptions"></label>
             <div class="toggle-line">
-              <input type="checkbox" id="filterHide" />
-              <span id="i_filterHideLabel">Hide nights that do not pass the filter</span>
+              <input id="filterHide" type="checkbox">
+              <span id="i_filterHideLabel"></span>
             </div>
-            <div class="toggle-line" style="margin-top: 4px;">
-              <input type="checkbox" id="filterHighlight" checked />
-              <span id="i_filterHighlightLabel">Highlight nights that pass the filter</span>
+            <div class="toggle-line">
+              <input id="filterHighlight" type="checkbox" checked>
+              <span id="i_filterHighlightLabel"></span>
             </div>
           </div>
         </div>
 
-        <div class="muted" id="i_filterHint">
-          If "Minimum duration" = 0, the time filter is disabled (but day-of-week filter still
-          applies if set).
-        </div>
-
-        <div class="muted" style="margin-top: 6px;" id="i_timeZoneHint">
-          Times are calculated in the browser’s local time zone.
-        </div>
+        <div class="muted" id="i_filterHint"></div>
       </div>
-    </section>
+    </div>
 
-    <!-- SELECTED NIGHT CARD -->
-    <section class="card">
-      <h2 id="nightTitle">Night 01.01.2025 → 02.01.2025</h2>
+    <!-- SELECTED NIGHT -->
+    <div class="card">
+      <h2 id="nightTitle">Night</h2>
 
       <!-- Full darkness block -->
-      <div class="block" style="margin-bottom: 10px;">
+      <div class="block" style="margin-bottom: 8px;">
         <div class="block-title">
-          <span class="block-title-emoji">🌕</span>
-          <span id="i_blockDarkTitle">Full darkness (selected night)</span>
+          <span class="block-title-emoji">🌑</span>
+          <span id="i_blockDarkTitle"></span>
         </div>
         <div class="mono" id="darknessInfo">—</div>
-        <div class="muted" id="darknessNote">
-          Between these times the Moon is below the horizon and it is astronomical night.
-        </div>
-        <div class="muted" id="filterInfo" style="margin-top: 6px;"></div>
+        <div class="muted" id="darknessNote" style="margin-top: 4px;"></div>
+        <div class="muted" id="filterInfo" style="margin-top: 4px;"></div>
       </div>
 
-      <!-- Sun / Moon / Phase blocks -->
+      <!-- Sun / Moon / Phase -->
       <div class="row">
         <div class="block">
           <div class="block-title">
             <span class="block-title-emoji">☀️</span>
-            <span id="i_blockSunTitle">Sun</span>
+            <span id="i_blockSunTitle"></span>
           </div>
-          <ul class="list" id="sunInfo"></ul>
+          <ul class="list mono" id="sunInfo"></ul>
         </div>
-
         <div class="block">
           <div class="block-title">
             <span class="block-title-emoji">🌙</span>
-            <span id="i_blockMoonTitle">Moon (for this night)</span>
+            <span id="i_blockMoonTitle"></span>
           </div>
-          <ul class="list" id="moonInfo"></ul>
+          <ul class="list mono" id="moonInfo"></ul>
         </div>
-
         <div class="block">
           <div class="block-title">
             <span class="block-title-emoji">🌓</span>
-            <span id="i_blockPhaseTitle">Moon phase</span>
+            <span id="i_blockPhaseTitle"></span>
           </div>
           <div class="mono" id="moonPhase">—</div>
         </div>
       </div>
-    </section>
+    </div>
 
-    <!-- FUTURE NIGHTS TABLE -->
-    <section class="card">
-      <h2 id="i_futureTitle">Next 30 nights — full darkness windows</h2>
-      <div class="muted" id="i_nightLegend">
-        For each date below, the table shows full darkness intervals (local time) and total duration.
-      </div>
-
+    <!-- NEXT 30 NIGHTS -->
+    <div class="card">
+      <h2 id="i_futureTitle"></h2>
       <table class="future-table">
         <colgroup>
-          <col />
-          <col />
-          <col />
+          <col>
+          <col>
+          <col>
         </colgroup>
         <thead>
           <tr>
-            <th id="i_thNight">Night</th>
-            <th id="i_thDarkness">Full darkness</th>
-            <th id="i_thTotal">Total duration</th>
+            <th id="i_thNight"></th>
+            <th id="i_thDarkness"></th>
+            <th id="i_thTotal"></th>
           </tr>
         </thead>
-        <tbody id="futureTableBody">
-          <!-- rows are generated by JS -->
-        </tbody>
+        <tbody id="futureTableBody"></tbody>
       </table>
-    </section>
+      <div class="muted" style="margin-top: 6px;" id="i_nightLegend"></div>
+    </div>
 
     <!-- FOOTER / VERSION -->
-    <footer class="footer">
-      <span id="versionLabel">Version</span> <span>1.1</span> •
-      <a href="https://r-sky.org" target="_blank" rel="noopener noreferrer"
-        >R-Sky Astro Instruments</a
-      >
-    </footer>
+    <div class="footer" id="versionLabel">
+      Darkness Planner · v1.1
+    </div>
   </div>
-
-  <!-- Libraries -->
-  <script src="StarJs.min.js"></script>
-  <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
-
-  <!-- Language packs -->
-  <script src="dark-lang-en.js"></script>
-  <script src="dark-lang-ru.js"></script>
-
-  <!-- Main app script -->
-  <script src="dark.js"></script>
 </body>
 </html>
