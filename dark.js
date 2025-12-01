@@ -1,20 +1,19 @@
 // Darkness Planner main script
 // Uses StarJs (StarJs.min.js) and SunCalc (CDN)
 
-// Link language objects
 const UI_STRINGS = {
   en: window.DARK_LANG_EN,
   ru: window.DARK_LANG_RU
 };
 
-// Global settings for time/date/lang
+// Global UI settings
 const settings = {
   time24: true,
-  dateFormat: 'MDY',
+  dateFormat: 'DMY', // default: DD.MM.YYYY
   lang: 'en'
 };
 
-// ==== Helpers ====
+// ---------- Generic helpers ----------
 
 function pad2(n) {
   return n < 10 ? '0' + n : '' + n;
@@ -36,6 +35,7 @@ function diffMinutes(a, b) {
   return Math.round((b.getTime() - a.getTime()) / 60000);
 }
 
+// Full date according to selected format
 function fmtDate(d) {
   const yyyy = d.getFullYear();
   const mm = pad2(d.getMonth() + 1);
@@ -45,13 +45,17 @@ function fmtDate(d) {
       return `${mm}/${dd}/${yyyy}`;
     case 'YMD':
       return `${yyyy}-${mm}-${dd}`;
+    case 'DMY2': // DD.MM.YY
+      return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
     case 'DMY':
     default:
       return `${dd}.${mm}.${yyyy}`;
   }
 }
 
+// Short date used in brackets
 function fmtDateShort(d) {
+  const yyyy = d.getFullYear();
   const mm = pad2(d.getMonth() + 1);
   const dd = pad2(d.getDate());
   switch (settings.dateFormat) {
@@ -59,6 +63,8 @@ function fmtDateShort(d) {
       return `${mm}/${dd}`;
     case 'YMD':
       return `${mm}-${dd}`;
+    case 'DMY2':
+      return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
     case 'DMY':
     default:
       return `${dd}.${mm}`;
@@ -82,7 +88,7 @@ function fmtTime(d) {
 function fmtDuration(mins) {
   const lang = settings.lang;
   if (!mins || mins <= 0) {
-    return (lang === 'ru') ? '0 мин' : '0 min';
+    return lang === 'ru' ? '0 мин' : '0 min';
   }
   const h = Math.floor(mins / 60);
   const m = mins % 60;
@@ -115,16 +121,16 @@ function labelHour(h) {
   }
 }
 
-// ==== Settings / language ====
+// ---------- Settings + language ----------
 
 function updateSettingsFromUI() {
   const t24 = document.getElementById('time24');
-  const df  = document.getElementById('dateFormat');
+  const df = document.getElementById('dateFormat');
   const langSel = document.getElementById('langSelect');
 
-  settings.time24     = !!t24.checked;
-  settings.dateFormat = df.value || 'MDY';
-  settings.lang       = langSel.value || 'en';
+  settings.time24 = !!t24.checked;
+  settings.dateFormat = df.value || 'DMY';
+  settings.lang = langSel.value || 'en';
 }
 
 function applyLanguage() {
@@ -180,7 +186,7 @@ function applyLanguage() {
 
 function updateFilterHourLabels() {
   const fromSel = document.getElementById('filterFromHour');
-  const toSel   = document.getElementById('filterToHour');
+  const toSel = document.getElementById('filterToHour');
   [fromSel, toSel].forEach(sel => {
     if (!sel) return;
     for (const opt of sel.options) {
@@ -194,16 +200,16 @@ function updateFilterHourLabels() {
 
 function getFilterConfig() {
   const fromSel = document.getElementById('filterFromHour');
-  const toSel   = document.getElementById('filterToHour');
-  const durEl   = document.getElementById('filterDuration');
-  const hideEl  = document.getElementById('filterHide');
-  const hlEl    = document.getElementById('filterHighlight');
-  const dowSel  = document.getElementById('dowFilter');
+  const toSel = document.getElementById('filterToHour');
+  const durEl = document.getElementById('filterDuration');
+  const hideEl = document.getElementById('filterHide');
+  const hlEl = document.getElementById('filterHighlight');
+  const dowSel = document.getElementById('dowFilter');
 
   let fromHour = parseInt(fromSel.value, 10);
-  let toHour   = parseInt(toSel.value, 10);
+  let toHour = parseInt(toSel.value, 10);
   if (isNaN(fromHour)) fromHour = 0;
-  if (isNaN(toHour))   toHour   = 0;
+  if (isNaN(toHour)) toHour = 0;
 
   let dur = durEl.value ? durEl.value.toString().replace(',', '.') : '0';
   let durNum = parseFloat(dur);
@@ -236,7 +242,7 @@ function getFilterConfig() {
   };
 }
 
-// ==== Astronomy using StarJS ====
+// ---------- Astronomy based on StarJS ----------
 
 function getEventsForDate(midnightLocal, latDeg, lonDeg) {
   if (!window.StarJs || !StarJs.Solar || !StarJs.Time) return null;
@@ -306,24 +312,24 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
   let runStart = null;
 
   const startMs = astrStart.getTime();
-  const endMs   = astrEnd.getTime();
+  const endMs = astrEnd.getTime();
 
   for (let tMs = startMs; tMs <= endMs; tMs += stepMs) {
     const t = new Date(tMs);
 
     const mjd = StarJs.Time.time2mjd(t);
-    const T   = StarJs.Time.mjd2jct(mjd);
+    const T = StarJs.Time.mjd2jct(mjd);
 
     const pos = StarJs.Solar.approxMoon(T);
-    const ra  = pos.ra;
+    const ra = pos.ra;
     const dec = pos.dec;
 
     const gmst = StarJs.Time.gmst(mjd);
-    const lst  = gmst + lonRad;
-    const H    = lst - ra;
+    const lst = gmst + lonRad;
+    const H = lst - ra;
 
     const sinAlt = sinLat * Math.sin(dec) +
-                   cosLat * Math.cos(dec) * Math.cos(H);
+      cosLat * Math.cos(dec) * Math.cos(H);
     const alt = Math.asin(sinAlt);
 
     const nowDark = alt < 0;
@@ -360,7 +366,7 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   const ev0 = getEventsForDate(mid0, latDeg, lonDeg);
   const ev1 = getEventsForDate(mid1, latDeg, lonDeg);
   const windowStart = sunset.getTime();
-  const windowEnd   = sunrise.getTime();
+  const windowEnd = sunrise.getTime();
 
   function addEventsFrom(ev, mid) {
     if (!ev || !ev.moon || !ev.moon.day) return;
@@ -393,14 +399,15 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   return result;
 }
 
+// Overlap between full darkness and user time window
 function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
   if (!filter || filter.minMinutes <= 0) return 0;
   if (!darknessIntervals || darknessIntervals.length === 0) return 0;
 
   const baseMid = atLocalMidnight(baseDate);
-  const baseMs  = baseMid.getTime();
+  const baseMs = baseMid.getTime();
   const nextMid = shiftDays(baseMid, 1);
-  const nextMs  = nextMid.getTime();
+  const nextMs = nextMid.getTime();
 
   let windowStartMs = baseMs + filter.fromHour * 3600000;
   let windowEndMs;
@@ -408,15 +415,17 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
   if (filter.toHour > filter.fromHour) {
     windowEndMs = baseMs + filter.toHour * 3600000;
   } else if (filter.toHour === filter.fromHour) {
+    // 24 hours window (effectively disabled)
     windowEndMs = nextMs + 24 * 3600000;
   } else {
+    // crosses midnight
     windowEndMs = nextMs + filter.toHour * 3600000;
   }
 
   let total = 0;
   for (const interval of darknessIntervals) {
     const s = Math.max(interval.start.getTime(), windowStartMs);
-    const e = Math.min(interval.end.getTime(),   windowEndMs);
+    const e = Math.min(interval.end.getTime(), windowEndMs);
     if (e > s) {
       total += Math.round((e - s) / 60000);
     }
@@ -424,18 +433,18 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
   return total;
 }
 
-// ==== UI update for selected night ====
+// ---------- Selected night panel ----------
 
 function updateSelectedNight(baseDate, lat, lon) {
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
   const nightEnd = shiftDays(baseDate, 1);
 
-  const titleEl      = document.getElementById('nightTitle');
-  const sunInfoEl    = document.getElementById('sunInfo');
-  const moonInfoEl   = document.getElementById('moonInfo');
-  const phaseEl      = document.getElementById('moonPhase');
-  const darkEl       = document.getElementById('darknessInfo');
-  const darkNoteEl   = document.getElementById('darknessNote');
+  const titleEl = document.getElementById('nightTitle');
+  const sunInfoEl = document.getElementById('sunInfo');
+  const moonInfoEl = document.getElementById('moonInfo');
+  const phaseEl = document.getElementById('moonPhase');
+  const darkEl = document.getElementById('darknessInfo');
+  const darkNoteEl = document.getElementById('darknessNote');
   const filterInfoEl = document.getElementById('filterInfo');
 
   titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(baseDate)} → ${fmtDate(nightEnd)}`;
@@ -458,10 +467,10 @@ function updateSelectedNight(baseDate, lat, lon) {
     sunInfoEl.appendChild(li);
   }
 
-  addSun('sunset',    sun.sunset);
-  addSun('sunrise',   sun.sunrise);
+  addSun('sunset', sun.sunset);
+  addSun('sunrise', sun.sunrise);
   addSun('astrStart', sun.astrStart);
-  addSun('astrEnd',   sun.astrEnd);
+  addSun('astrEnd', sun.astrEnd);
 
   const moonNight = getMoonNightEvents(baseDate, lat, lon);
   moonInfoEl.innerHTML = '';
@@ -494,12 +503,12 @@ function updateSelectedNight(baseDate, lat, lon) {
     }
   }
 
-  // Moon phase + age in days
+  // Moon phase and age
   if (window.SunCalc && SunCalc.getMoonIllumination) {
-    const mid   = atLocalMidnight(baseDate);
+    const mid = atLocalMidnight(baseDate);
     const illum = SunCalc.getMoonIllumination(mid);
-    const frac  = Math.round(illum.fraction * 100);
-    const p     = illum.phase;
+    const frac = Math.round(illum.fraction * 100);
+    const p = illum.phase;
     const synodicMonth = 29.530588853;
     const ageDays = illum.phase * synodicMonth;
 
@@ -533,7 +542,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     phaseEl.textContent = L.phaseUnavailable;
   }
 
-  const dark   = getFullDarknessForNight(baseDate, lat, lon);
+  const dark = getFullDarknessForNight(baseDate, lat, lon);
   const filter = getFilterConfig();
 
   if (!dark.sun.astrStart || !dark.sun.astrEnd) {
@@ -544,25 +553,26 @@ function updateSelectedNight(baseDate, lat, lon) {
     darkNoteEl.textContent = '';
   } else {
     const intervalsStr = formatIntervals(dark.darknessIntervals);
-    const totalStr     = fmtDuration(dark.totalMinutes);
+    const totalStr = fmtDuration(dark.totalMinutes);
     darkEl.innerHTML = `<span class="ok">${intervalsStr}</span> (total ${totalStr})`;
     darkNoteEl.textContent =
       dark.darknessIntervals.length > 1 ? L.darkMulti : L.darkSingle;
   }
 
+  // Filter explanation + next suitable night
   filterInfoEl.textContent = '';
-  const hasTimeFilter   = filter.minMinutes > 0;
-  const hasDayFilter    = !!(filter.allowedDays && filter.allowedDays.length);
+  const hasTimeFilter = filter.minMinutes > 0;
+  const hasDayFilter = !!(filter.allowedDays && filter.allowedDays.length);
   const anyFilterActive = hasTimeFilter || hasDayFilter;
 
   if (!anyFilterActive) return;
 
   let text = '';
 
-  const dowThis      = baseDate.getDay();
+  const dowThis = baseDate.getDay();
   const dayMatchThis = !filter.allowedDays || filter.allowedDays.includes(dowThis);
-  let matchMinutes   = 0;
-  let timeOkThis     = true;
+  let matchMinutes = 0;
+  let timeOkThis = true;
 
   if (hasTimeFilter && dark.sun.astrStart && dark.sun.astrEnd) {
     matchMinutes = getFilterOverlapMinutes(
@@ -599,7 +609,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     const dayOK = !filter.allowedDays || filter.allowedDays.includes(dow);
 
     let timeOK = true;
-    let mm     = 0;
+    let mm = 0;
     if (hasTimeFilter) {
       mm = getFilterOverlapMinutes(d, darkNext.darknessIntervals, filter);
       timeOK = mm >= filter.minMinutes;
@@ -637,17 +647,17 @@ function updateSelectedNight(baseDate, lat, lon) {
   filterInfoEl.textContent = text;
 }
 
-// ==== Future 30 nights table ====
+// ---------- Future 30 nights table ----------
 
 function updateFutureTable(startDate, lat, lon) {
-  const tbody  = document.getElementById('futureTableBody');
+  const tbody = document.getElementById('futureTableBody');
   const filter = getFilterConfig();
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
 
   tbody.innerHTML = '';
 
-  const hasTimeFilter   = filter.minMinutes > 0;
-  const hasDayFilter    = !!(filter.allowedDays && filter.allowedDays.length);
+  const hasTimeFilter = filter.minMinutes > 0;
+  const hasDayFilter = !!(filter.allowedDays && filter.allowedDays.length);
   const anyFilterActive = hasTimeFilter || hasDayFilter;
 
   for (let i = 0; i < 30; i++) {
@@ -684,7 +694,7 @@ function updateFutureTable(startDate, lat, lon) {
     cells.forEach(td => td.classList.remove('filter-match-cell'));
 
     const dayMatch = !filter.allowedDays || filter.allowedDays.includes(dow);
-    let timeMatch  = true;
+    let timeMatch = true;
 
     if (hasTimeFilter) {
       const mm = getFilterOverlapMinutes(base, data.darknessIntervals, filter);
@@ -708,15 +718,15 @@ function updateFutureTable(startDate, lat, lon) {
   }
 }
 
-// ==== Core recalculation ====
+// ---------- Core recalculation ----------
 
 function recalcAll() {
   updateSettingsFromUI();
   applyLanguage();
   updateFilterHourLabels();
 
-  const lat     = parseFloat(document.getElementById('lat').value) || 0;
-  const lon     = parseFloat(document.getElementById('lon').value) || 0;
+  const lat = parseFloat(document.getElementById('lat').value) || 0;
+  const lon = parseFloat(document.getElementById('lon').value) || 0;
   const dateStr = document.getElementById('startDate').value;
   let baseDate;
   if (dateStr) {
@@ -729,11 +739,11 @@ function recalcAll() {
   updateFutureTable(baseDate, lat, lon);
 }
 
-// ==== Initialization ====
+// ---------- Initialization ----------
 
 function initFilterTimeSelects() {
   const fromSel = document.getElementById('filterFromHour');
-  const toSel   = document.getElementById('filterToHour');
+  const toSel = document.getElementById('filterToHour');
   for (let h = 0; h < 24; h++) {
     const opt1 = document.createElement('option');
     opt1.value = h;
@@ -743,7 +753,7 @@ function initFilterTimeSelects() {
     toSel.appendChild(opt2);
   }
   fromSel.value = '21';
-  toSel.value   = '2';
+  toSel.value = '2';
 }
 
 function initStartDate() {
@@ -755,9 +765,9 @@ function initStartDate() {
 }
 
 function initSettingsAccordion() {
-  const card   = document.getElementById('settingsCard');
+  const card = document.getElementById('settingsCard');
   const header = card.querySelector('.settings-header');
-  const icon   = document.getElementById('menuIcon');
+  const icon = document.getElementById('menuIcon');
 
   function toggle() {
     if (card.classList.contains('collapsed')) {
@@ -808,7 +818,7 @@ function initEvents() {
   document.getElementById('dowFilter').addEventListener('change', recalcAll);
 }
 
-// ==== PWA: register service worker ====
+// ---------- PWA: service worker ----------
 
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
