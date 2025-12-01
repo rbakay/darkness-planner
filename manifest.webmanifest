@@ -1,0 +1,21 @@
+{
+  "name": "Darkness Planner",
+  "short_name": "Darkness",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#050814",
+  "theme_color": "#050814",
+  "description": "Plan nights of full darkness: astronomical night without the Moon, with filters by time and days of week.",
+  "icons": [
+    {
+      "src": "dark-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "dark-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
