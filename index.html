@@ -4,7 +4,11 @@
   <meta charset="UTF-8" />
   <title>Darkness Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Status / system colors for PWA -->
   <meta name="theme-color" content="#050814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.webmanifest" />
@@ -12,17 +16,17 @@
   <!-- Styles -->
   <link rel="stylesheet" href="dark.css" />
 
-  <!-- StarJS (локальный файл, положи рядом с index.html) -->
+  <!-- StarJS (local file) -->
   <script src="StarJs.min.js"></script>
 
-  <!-- SunCalc – для фазы Луны и освещенности -->
+  <!-- SunCalc – used for Moon phase and illumination -->
   <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
 
-  <!-- Языковые файлы -->
+  <!-- Language packs -->
   <script src="lang-en.js"></script>
   <script src="lang-ru.js"></script>
 
-  <!-- Основная логика приложения -->
+  <!-- Main application logic -->
   <script defer src="dark.js"></script>
 </head>
 <body>
@@ -45,7 +49,7 @@
       <div class="settings-body">
         <div class="subtitle" id="i_topHint"></div>
 
-        <!-- Coordinates + date + buttons -->
+        <!-- Coordinates + date + main buttons -->
         <div class="controls">
           <div class="field">
             <label for="lat" id="i_labelLat"></label>
@@ -75,8 +79,9 @@
           <div class="field">
             <label for="dateFormat" id="i_labelDateFormat"></label>
             <select id="dateFormat">
-              <option value="DMY">DD.MM.YYYY</option>
-              <option value="MDY" selected>MM/DD/YYYY</option>
+              <option value="DMY" selected>DD.MM.YYYY</option>
+              <option value="DMY2">DD.MM.YY</option>
+              <option value="MDY">MM/DD/YYYY</option>
               <option value="YMD">YYYY-MM-DD</option>
             </select>
           </div>
@@ -84,7 +89,7 @@
             <label for="langSelect" id="i_labelLanguage"></label>
             <select id="langSelect">
               <option value="en" selected>English</option>
-              <option value="ru">Русский</option>
+              <option value="ru">Русский</option>
             </select>
           </div>
         </div>
@@ -195,7 +200,7 @@
 
     <!-- FOOTER / VERSION -->
     <div class="footer" id="versionLabel">
-      Darkness Planner · v1.0
+      Darkness Planner · v1.1
     </div>
   </div>
 </body>
