@@ -1,69 +1,82 @@
+/* Darkness Planner — main theme */
 :root {
   --bg: #050814;
-  --bg2: #0d1020;
-  --bg3: #101528;
+  --bg-elevated: #0c1021;
+  --bg-elevated-2: #141828;
   --border: #262a3c;
-  --accent: #4ea0ff;
-  --accent-soft: rgba(78,160,255,0.25);
-  --text: #f5f7ff;
-  --muted: #9aa0be;
-  --danger: #ff6b81;
-  --ok: #48c78e;
-  --font: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --accent: #7c5cff;
+  --accent-soft: rgba(124, 92, 255, 0.16);
+  --text-main: #f5f7ff;
+  --text-muted: #9aa0be;
+  --warn: #ff8c7a;
+  --ok: #5ce3b0;
+  --weekend-bg: #352046;
+  --weekend-border: #f2c94c;
+  --filter-match-bg: rgba(92, 227, 176, 0.18);
 }
 
-* {
+/* Global */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  padding: 12px;
-  font-family: var(--font);
-  background: radial-gradient(circle at top, #181f3a 0, #050814 55%, #02030a 100%);
-  color: var(--text);
-  font-size: 15px;
+  padding: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", sans-serif;
+}
+
+/* Layout */
+body {
+  display: flex;
+  justify-content: center;
 }
 
 .layout {
-  max-width: 1100px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  width: 100%;
+  max-width: 980px;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) 10px
+    calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
+/* Cards */
 .card {
-  background: linear-gradient(145deg, rgba(10,14,32,0.96), rgba(6,10,22,0.96));
-  border-radius: 18px;
+  background: radial-gradient(circle at top, #14192d 0, var(--bg-elevated) 55%);
+  border-radius: 24px;
   border: 1px solid var(--border);
-  padding: 14px;
-  box-shadow: 0 18px 40px rgba(0,0,0,0.65);
+  padding: 16px 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.55);
 }
 
-h2 {
-  margin: 0 0 6px;
-  font-size: 20px;
-}
-
-.subtitle {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
-  line-height: 1.4;
-}
-
-/* Settings accordion */
-
+/* Settings card */
 .settings-card {
-  padding: 0;
+  overflow: hidden;
+  padding-top: 10px;
+  padding-bottom: 8px;
 }
 
+.settings-card.collapsed .settings-body {
+  display: none;
+}
+
+.settings-card.expanded .settings-body {
+  display: block;
+}
+
+/* Settings header and menu icon */
 .settings-header {
-  padding: 12px 14px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin-bottom: 4px;
   cursor: pointer;
 }
 
@@ -74,82 +87,82 @@ h2 {
 }
 
 .settings-title-main {
-  font-size: 20px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .settings-title-sub {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
+/* Hamburger icon */
 .menu-icon {
-  width: 26px;
-  height: 26px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg2);
-  flex-shrink: 0;
 }
 
 .menu-icon-inner {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
 }
 
 .menu-icon-line {
-  width: 14px;
+  width: 16px;
   height: 2px;
   border-radius: 999px;
-  background: var(--muted);
+  background: #ffffff;
 }
 
-.settings-card.expanded .menu-icon {
-  background: #151a33;
+/* Text blocks */
+.subtitle {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 4px 0 8px;
 }
 
-.settings-body {
-  border-top: 1px solid var(--border);
-  padding: 10px 14px 12px;
-  display: none;
+.muted {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
-.settings-card.expanded .settings-body {
-  display: block;
-}
-
+/* Controls area */
 .controls {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  align-items: flex-end;
-  margin-bottom: 6px;
+  margin-bottom: 8px;
 }
 
 .field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
+  flex: 1 1 150px;
   min-width: 140px;
 }
 
-label {
-  font-size: 13px;
-  color: var(--muted);
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
 }
 
+/* Inputs / selects */
 input[type="number"],
 input[type="date"],
 select {
-  padding: 7px 9px;
-  border-radius: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 12px;
   border: 1px solid var(--border);
-  background: var(--bg2);
-  color: var(--text);
+  background: rgba(10, 14, 30, 0.9);
+  color: var(--text-main);
   font-size: 14px;
   outline: none;
 }
@@ -158,220 +171,202 @@ input[type="number"]:focus,
 input[type="date"]:focus,
 select:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent-soft);
+  box-shadow: 0 0 0 1px rgba(124, 92, 255, 0.4);
 }
 
-button {
-  padding: 8px 15px;
-  border-radius: 999px;
-  border: none;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: #ffffff;
-  background: linear-gradient(135deg, #4ea0ff, #9f7cff);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.55);
-  transition: transform 0.08s ease-out, box-shadow 0.08s ease-out;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 13px 30px rgba(0,0,0,0.7);
-}
-
-button:active {
-  transform: translateY(0);
-  box-shadow: 0 7px 18px rgba(0,0,0,0.6);
-}
-
-.muted {
-  color: var(--muted);
-  font-size: 12px;
-}
-
+/* Toggle lines (checkbox + label) */
 .toggle-line {
   display: flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--muted);
+  color: var(--text-main);
 }
 
-/* Blocks layout */
+.toggle-line input[type="checkbox"] {
+  accent-color: var(--accent);
+}
 
+/* Buttons (My location / Recalculate) */
+button {
+  border-radius: 999px;
+  border: none;
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #7c5cff, #ff6bbb);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+  white-space: nowrap;
+}
+
+button:hover {
+  filter: brightness(1.05);
+}
+
+button:active {
+  transform: translateY(1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+}
+
+/* Typography */
+h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+
+/* Blocks in the selected-night card */
 .row {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 4px;
+  gap: 10px;
 }
 
 .block {
-  flex: 1;
-  min-width: 220px;
-  background: var(--bg3);
-  border-radius: 12px;
+  flex: 1 1 230px;
+  min-width: 0;
+  background: radial-gradient(circle at top, #1b2034 0, var(--bg-elevated-2) 55%);
+  border-radius: 20px;
   border: 1px solid var(--border);
-  padding: 9px 10px;
-  font-size: 14px;
+  padding: 10px 12px 12px;
 }
 
 .block-title {
-  font-weight: 650;
-  margin-bottom: 4px;
-  font-size: 15px;
   display: flex;
   align-items: center;
   gap: 6px;
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
 }
 
 .block-title-emoji {
   font-size: 18px;
 }
 
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
-}
-
+/* Lists / monospace */
 .list {
-  margin: 4px 0 0;
-  padding-left: 16px;
+  padding-left: 18px;
+  margin: 0;
   font-size: 13px;
 }
 
 .list li {
-  margin: 2px 0;
+  margin-bottom: 3px;
 }
 
+.mono {
+  font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 14px;
+}
+
+/* Status colors */
 .ok {
   color: var(--ok);
 }
 
 .warn {
-  color: var(--danger);
+  color: var(--warn);
 }
 
-/* Table */
-
-table {
+/* Future nights table */
+.future-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 13px;
 }
 
-th,
-td {
-  border: 1px solid var(--border);
-  padding: 6px 4px;
-  text-align: center;
+.future-table thead {
+  background: rgba(255, 255, 255, 0.03);
 }
 
-thead th {
-  background: #111528;
+.future-table th,
+.future-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: top;
+}
+
+.future-table th {
+  text-align: left;
   font-weight: 600;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-tbody tr:nth-child(odd) {
-  background: rgba(10,14,32,0.9);
+/* Make first column wider so weekend text fits in one line */
+.future-table colgroup col:nth-child(1) {
+  width: 46%;
 }
-
-tbody tr:nth-child(even) {
-  background: rgba(6,10,24,0.9);
+.future-table colgroup col:nth-child(2) {
+  width: 29%;
 }
-
-/* Table column widths */
-
-table.future-table col:nth-child(1) {
-  width: 45%;
-}
-
-table.future-table col:nth-child(2),
-table.future-table col:nth-child(3) {
-  width: 27.5%;
-}
-
-/* Weekend highlighting */
-
-.weekend-row {
-  background: rgba(48, 36, 80, 0.98) !important;
-}
-
-.weekend-row td:first-child {
-  border-left: 3px solid #ffc857;
-}
-
-.weekend-label {
-  font-size: 11px;
-  color: #ffc857;
-  margin-left: 4px;
-  white-space: nowrap;
+.future-table colgroup col:nth-child(3) {
+  width: 25%;
 }
 
 /* Night column */
-
 .night-col {
-  text-align: left;
-  padding-left: 6px;
+  position: relative;
 }
 
 .night-date {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 400;
   display: block;
+  font-size: 11px;
+  color: var(--text-muted);
   margin-top: 2px;
 }
 
-/* Full darkness block text */
-
-#darknessInfo {
-  font-size: 16px;
-}
-
-/* Highlight cells that match the time filter */
-
-.filter-match-cell {
-  background: rgba(46, 92, 160, 0.95) !important;
-}
-
-/* Footer / version */
-
-.footer {
-  text-align: right;
+/* Weekend label */
+.weekend-label {
+  display: inline-block;
+  margin-left: 4px;
   font-size: 11px;
-  color: var(--muted);
-  margin-top: -4px;
-  margin-bottom: 2px;
+  color: #f2c94c;
 }
 
-/* Mobile */
+/* Weekend row highlight */
+.weekend-row {
+  background: var(--weekend-bg);
+}
 
-@media (max-width: 800px) {
-  body {
-    padding: 8px;
-  }
+.weekend-row .night-col {
+  border-left: 3px solid var(--weekend-border);
+}
 
+/* Filter match highlight (only time & total columns) */
+.filter-match-cell {
+  background: var(--filter-match-bg);
+}
+
+/* Footer */
+.footer {
+  margin-top: 4px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* Small screens tweaks */
+@media (max-width: 600px) {
   .card {
-    padding: 10px;
+    padding: 12px 12px 14px;
+    border-radius: 20px;
   }
 
-  .settings-header {
-    padding: 10px 12px;
+  .settings-title-main {
+    font-size: 20px;
   }
 
-  .settings-body {
-    padding: 8px 12px 10px;
+  .block {
+    padding: 9px 10px 10px;
   }
 
-  table {
-    font-size: 12px;
-  }
-
-  th,
-  td {
-    padding: 5px 3px;
+  .future-table th,
+  .future-table td {
+    padding: 5px 6px;
   }
 }
