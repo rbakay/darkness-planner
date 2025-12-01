@@ -154,6 +154,21 @@ body {
   margin-bottom: 4px;
 }
 
+/* --- NEW: row for main buttons under the date --- */
+.button-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.button-row button {
+  flex: 1 1 150px;
+  min-width: 140px;
+}
+/* --- END NEW --- */
+
 /* Inputs / selects */
 input[type="number"],
 input[type="date"],
