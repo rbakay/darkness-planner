@@ -74,5 +74,5 @@ window.DARK_LANG_EN = {
   nextNone: 'No suitable nights found within the next 30 nights.',
   geoNotSupported: 'Geolocation is not supported by this browser.',
   geoFailed: 'Failed to get coordinates.',
-  versionLabel: 'Darkness Planner · v1.2'
+  versionLabel: 'Darkness Planner · v1.3'
 };
