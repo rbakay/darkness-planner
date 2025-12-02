@@ -13,6 +13,16 @@
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.webmanifest" />
 
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16x16.png">
+
+  <!-- Apple touch icons (iOS home screen) -->
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/apple-icon-180x180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="icons/apple-icon-167x167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="icons/apple-icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="icons/apple-icon-120x120.png">
+
   <!-- Styles -->
   <link rel="stylesheet" href="dark.css" />
 
@@ -49,7 +59,7 @@
       <div class="settings-body">
         <div class="subtitle" id="i_topHint"></div>
 
-        <!-- Coordinates + date -->
+        <!-- Coordinates + date + main buttons -->
         <div class="controls">
           <div class="field">
             <label for="lat" id="i_labelLat"></label>
@@ -63,10 +73,6 @@
             <label for="startDate" id="i_labelStartDate"></label>
             <input id="startDate" type="date">
           </div>
-        </div>
-
-        <!-- Buttons row (same IDs, just moved under date) -->
-        <div class="button-row">
           <button id="btnGeo" type="button"></button>
           <button id="btnCalc" type="button"></button>
         </div>
@@ -204,7 +210,7 @@
 
     <!-- FOOTER / VERSION -->
     <div class="footer" id="versionLabel">
-      Darkness Planner · v1.1
+      Darkness Planner · v1.2
     </div>
   </div>
 </body>
