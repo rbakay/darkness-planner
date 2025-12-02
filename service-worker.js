@@ -1,5 +1,5 @@
 // Service Worker for Darkness Planner
-const CACHE_NAME = 'darkness-planner-v1.1';
+const CACHE_NAME = 'darkness-planner-v1.2';
 
 const ASSETS = [
   './',
