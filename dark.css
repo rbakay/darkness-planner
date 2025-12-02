@@ -388,3 +388,10 @@ h2 {
     padding: 5px 6px;
   }
 }
+
+/* Highlighted darkness interval (bigger & weekend color) */
+.darkness-interval {
+  font-size: 20px;          
+  font-weight: 600;         
+  color: var(--weekend-border); 
+}
