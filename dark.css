@@ -43,7 +43,7 @@ body {
   width: 100%;
   max-width: 980px;
   padding: calc(16px + env(safe-area-inset-top, 0px)) 10px
-    calc(24px + env(safe-area-inset-bottom, 0px));
+    calc(32px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Cards */
@@ -154,21 +154,6 @@ body {
   margin-bottom: 4px;
 }
 
-/* --- NEW: row for main buttons under the date --- */
-.button-row {
-  display: flex;
-  gap: 12px;
-  margin-top: 6px;
-  margin-bottom: 10px;
-  flex-wrap: wrap;
-}
-
-.button-row button {
-  flex: 1 1 150px;
-  min-width: 140px;
-}
-/* --- END NEW --- */
-
 /* Inputs / selects */
 input[type="number"],
 input[type="date"],
@@ -179,7 +164,8 @@ select {
   border: 1px solid var(--border);
   background: rgba(10, 14, 30, 0.9);
   color: var(--text-main);
-  font-size: 14px;
+  /* 16px – чтобы Safari не масштабировал страницу в горизонтальном режиме */
+  font-size: 16px;
   outline: none;
 }
 
@@ -215,8 +201,7 @@ button {
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
   white-space: nowrap;
-  transition: transform 0.05s ease, box-shadow 0.05s ease,
-    filter 0.1s ease;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, filter 0.1s ease;
 }
 
 button:hover {
@@ -278,6 +263,12 @@ h2 {
   font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
   font-size: 14px;
+}
+
+/* Full darkness time line – make it bigger and colored like weekend label */
+#darknessInfo {
+  font-size: 18px;
+  color: var(--weekend-border);
 }
 
 /* Status colors */
@@ -366,6 +357,7 @@ h2 {
   font-size: 11px;
   text-align: center;
   color: var(--text-muted);
+  padding-bottom: 4px;
 }
 
 /* Small screens tweaks */
