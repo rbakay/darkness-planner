@@ -661,11 +661,17 @@ function updateSelectedNight(baseDate, lat, lon) {
   } else {
     const intervalsStr = formatIntervals(dark.darknessIntervals);
     const totalStr = fmtDuration(dark.totalMinutes);
-    darkEl.innerHTML = `<span class="ok">${intervalsStr}</span> (total ${totalStr})`;
+
+    // подпись "total / всего" без правки языковых файлов
+    const totalLabel = settings.lang === 'ru' ? 'всего' : 'total';
+
+    darkEl.innerHTML =
+      `<span class="darkness-interval ok">${intervalsStr}</span> ` +
+      `(<span class="total">${totalLabel} ${totalStr}</span>)`;
+
     darkNoteEl.textContent =
       dark.darknessIntervals.length > 1 ? L.darkMulti : L.darkSingle;
   }
-
   // Filter explanation + next suitable night
   filterInfoEl.textContent = '';
   const hasTimeFilter = filter.minMinutes > 0;
