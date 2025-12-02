@@ -1,7 +1,7 @@
 // -------------------------------
 // Service Worker for Darkness Planner
 // Increase this version string to force an update:
-const CACHE_NAME = 'darkness-planner-v1.2';
+const CACHE_NAME = 'darkness-planner-v1.3';
 // -------------------------------
 
 const ASSETS = [
