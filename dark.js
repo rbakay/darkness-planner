@@ -730,6 +730,10 @@ function updateSelectedNight(baseDate, lat, lon) {
     const synodicMonth = 29.530588853;
     const ageDays = illum.phase * synodicMonth;
 
+        // Updating the icon on canvas
+    const canvas = document.getElementById('moonPhaseCanvas');
+    drawMoonPhase(canvas, illum.phase, illum.fraction);
+    
     let name;
     if (settings.lang === 'ru') {
       if (p < 0.03 || p > 0.97) name = 'Новолуние';
