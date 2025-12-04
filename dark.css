@@ -154,7 +154,7 @@ body {
   margin-bottom: 4px;
 }
 
-/* --- NEW: row for main buttons under the date --- */
+/* --- buttons row under the date --- */
 .button-row {
   display: flex;
   gap: 12px;
@@ -167,7 +167,7 @@ body {
   flex: 1 1 150px;
   min-width: 140px;
 }
-/* --- END NEW --- */
+/* --- END --- */
 
 /* Inputs / selects */
 input[type="number"],
@@ -262,6 +262,7 @@ h2 {
 .block-title-emoji {
   font-size: 18px;
 }
+
 /* Moon phase block: icon + text */
 .moon-phase-row {
   display: flex;
@@ -269,12 +270,20 @@ h2 {
   gap: 10px;
 }
 
+/* ИКОНКА ЛУНЫ (canvas) */
 .moon-phase-row canvas {
   flex: 0 0 60px;
   height: 60px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 25%, #2b3354 0, #050814 80%);
   box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+}
+
+/* ТЕКСТ рядом с иконкой */
+.moon-phase-text,
+#moonPhase {
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 /* Lists / monospace */
@@ -401,11 +410,20 @@ h2 {
   .future-table td {
     padding: 5px 6px;
   }
+
+  .moon-phase-row {
+    align-items: flex-start;
+  }
+
+  .moon-phase-row canvas {
+    flex: 0 0 52px;
+    height: 52px;
+  }
 }
 
 /* Highlighted darkness interval (bigger & weekend color) */
 .darkness-interval {
-  font-size: 20px;          
-  font-weight: 600;         
-  color: var(--weekend-border); 
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--weekend-border);
 }
