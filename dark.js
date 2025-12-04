@@ -527,7 +527,78 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
 
   return result;
 }
+// ---------- Moon phase drawing on canvas ----------
 
+function drawMoonPhase(canvas, phase, fraction) {
+  // If the canvas is missing or unsupported, do nothing
+  if (!canvas || !canvas.getContext) return;
+
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+
+  // Clear previous drawing
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2;        // center X
+  const cy = h / 2;        // center Y
+  const r = Math.min(w, h) / 2 - 4; // radius of the Moon disk
+
+  // --- Base background disk (dark Moon circle) ---
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#050814';
+  ctx.fill();
+
+  // --- Shadow layer (slightly lighter dark disk) ---
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#111827';
+  ctx.fill();
+
+  // --- New Moon (almost no illumination) ---
+  if (fraction <= 0.01) {
+    // Leave the disk fully dark
+    return;
+  }
+
+  // --- Full Moon (almost 100% illuminated) ---
+  if (fraction >= 0.99) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#fef9c3';
+    ctx.fill();
+    return;
+  }
+
+  // Normalize key parameters
+  const isWaxing = phase < 0.5;  // true = waxing (light on the right side)
+  const k = 2 * fraction - 1;    // maps illumination fraction to [-1..1]
+  const rx = r * Math.abs(k);    // horizontal radius of bright part
+
+  ctx.save();
+
+  // Clip drawing to the circular Moon area
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.clip();
+
+  ctx.fillStyle = '#fef9c3';
+  ctx.beginPath();
+
+  if (isWaxing) {
+    // Waxing Moon — bright region on the right
+    ctx.ellipse(cx, cy, rx, r, 0, -Math.PI / 2, Math.PI / 2, false);
+    ctx.ellipse(cx, cy, r, r, 0, Math.PI / 2, -Math.PI / 2, false);
+  } else {
+    // Waning Moon — bright region on the left
+    ctx.ellipse(cx, cy, rx, r, 0, Math.PI / 2, -Math.PI / 2, false);
+    ctx.ellipse(cx, cy, r, r, 0, -Math.PI / 2, Math.PI / 2, false);
+  }
+
+  ctx.fill();
+  ctx.restore();
+}
 // Overlap between full darkness and user time window
 function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
   if (!filter || filter.minMinutes <= 0) return 0;
