@@ -157,9 +157,8 @@ function saveSettingsToStorage() {
       time24: !!time24El.checked,
       dateFormat: dateFormatSel.value || 'DMY',
       lang: langSel.value || 'en',
-      // store raw values to support 'astrStart' / 'astrEnd'
-      filterFromValue: fromSel.value || '0',
-      filterToValue: toSel.value || '0',
+      filterFromHour: fromSel.value,
+      filterToHour: toSel.value,
       filterDuration: durEl.value || '0',
       filterHide: !!hideEl.checked,
       filterHighlight: !!hlEl.checked,
@@ -209,19 +208,12 @@ function loadSettingsFromStorage() {
       settings.lang = data.lang;
     }
 
-    // Support new string-based storage and old numeric one
-    if (typeof data.filterFromValue === 'string') {
-      fromSel.value = data.filterFromValue;
-    } else if (typeof data.filterFromHour === 'number') {
-      fromSel.value = String(data.filterFromHour);
+    if (typeof data.filterFromHour === 'string') {
+      fromSel.value = data.filterFromHour;
     }
-
-    if (typeof data.filterToValue === 'string') {
-      toSel.value = data.filterToValue;
-    } else if (typeof data.filterToHour === 'number') {
-      toSel.value = String(data.filterToHour);
+    if (typeof data.filterToHour === 'string') {
+      toSel.value = data.filterToHour;
     }
-
     if (typeof data.filterDuration !== 'undefined') {
       durEl.value = String(data.filterDuration);
     }
@@ -296,14 +288,29 @@ function applyLanguage() {
 function updateFilterHourLabels() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
+  const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
+
+  const startLabel =
+    L.filterAstrStart ||
+    (settings.lang === 'ru' ? 'Начало астр. ночи' : 'Astronomical night start');
+  const endLabel =
+    L.filterAstrEnd ||
+    (settings.lang === 'ru' ? 'Конец астр. ночи' : 'Astronomical night end');
+
   [fromSel, toSel].forEach(sel => {
     if (!sel) return;
     for (const opt of sel.options) {
-      const h = parseInt(opt.value, 10);
-      if (!isNaN(h)) {
-        opt.textContent = labelHour(h);
+      const v = opt.value;
+      if (v === 'astrStart') {
+        opt.textContent = startLabel;
+      } else if (v === 'astrEnd') {
+        opt.textContent = endLabel;
+      } else {
+        const h = parseInt(v, 10);
+        if (!isNaN(h)) {
+          opt.textContent = labelHour(h);
+        }
       }
-      // Non-numeric values (astrStart/astrEnd) оставляем как есть
     }
   });
 }
@@ -316,27 +323,16 @@ function getFilterConfig() {
   const hlEl = document.getElementById('filterHighlight');
   const dowSel = document.getElementById('dowFilter');
 
-  const fromVal = fromSel.value;
-  const toVal = toSel.value;
+  const rawFrom = fromSel.value;
+  const rawTo = toSel.value;
 
-  let fromHour = 0;
-  let toHour = 0;
-  let fromMode = 'hour';
-  let toMode = 'hour';
+  const fromAstrStart = rawFrom === 'astrStart';
+  const toAstrEnd = rawTo === 'astrEnd';
 
-  if (fromVal === 'astrStart' || fromVal === 'astrEnd') {
-    fromMode = fromVal;
-  } else {
-    const fh = parseInt(fromVal, 10);
-    if (!isNaN(fh)) fromHour = fh;
-  }
-
-  if (toVal === 'astrStart' || toVal === 'astrEnd') {
-    toMode = toVal;
-  } else {
-    const th = parseInt(toVal, 10);
-    if (!isNaN(th)) toHour = th;
-  }
+  let fromHour = fromAstrStart ? 0 : parseInt(rawFrom, 10);
+  let toHour = toAstrEnd ? 0 : parseInt(rawTo, 10);
+  if (isNaN(fromHour)) fromHour = 0;
+  if (isNaN(toHour)) toHour = 0;
 
   let dur = durEl.value ? durEl.value.toString().replace(',', '.') : '0';
   let durNum = parseFloat(dur);
@@ -360,10 +356,10 @@ function getFilterConfig() {
   }
 
   return {
-    fromMode,
-    toMode,
     fromHour,
     toHour,
+    fromAstrStart,
+    toAstrEnd,
     minMinutes,
     hideNonMatch: !!hideEl.checked,
     highlightMatches: !!hlEl.checked,
@@ -539,52 +535,26 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
 
   const baseMid = atLocalMidnight(baseDate);
   const baseMs = baseMid.getTime();
-  const nextMid = shiftDays(baseMid, 1);
-  const nextMs = nextMid.getTime();
 
   let windowStartMs;
-  let windowEndMs;
-
-  const hasAstr = filter.fromMode !== 'hour' || filter.toMode !== 'hour';
-
-  if (!hasAstr) {
-    // Старый режим: оба значения — часы
-    windowStartMs = baseMs + filter.fromHour * 3600000;
-
-    if (filter.toHour > filter.fromHour) {
-      windowEndMs = baseMs + filter.toHour * 3600000;
-    } else if (filter.toHour === filter.fromHour) {
-      // 24 часа (фильтр по времени фактически выключен)
-      windowEndMs = nextMs + 24 * 3600000;
-    } else {
-      // пересекает полночь
-      windowEndMs = nextMs + filter.toHour * 3600000;
-    }
+  if (filter.fromAstrStart) {
+    if (!sun || !sun.astrStart) return 0;
+    windowStartMs = sun.astrStart.getTime();
   } else {
-    // Один или оба края — начало/конец астрономической ночи
-    if (filter.fromMode === 'astrStart' && sun.astrStart) {
-      windowStartMs = sun.astrStart.getTime();
-    } else if (filter.fromMode === 'astrEnd' && sun.astrEnd) {
-      windowStartMs = sun.astrEnd.getTime();
-    } else if (filter.fromMode === 'hour') {
-      windowStartMs = baseMs + filter.fromHour * 3600000;
-    } else {
-      windowStartMs = baseMs;
-    }
+    windowStartMs = baseMs + filter.fromHour * 3600000;
+  }
 
-    if (filter.toMode === 'astrStart' && sun.astrStart) {
-      windowEndMs = sun.astrStart.getTime();
-    } else if (filter.toMode === 'astrEnd' && sun.astrEnd) {
-      windowEndMs = sun.astrEnd.getTime();
-    } else if (filter.toMode === 'hour') {
-      const baseForTo =
-        filter.fromMode === 'hour' && filter.toHour <= filter.fromHour
-          ? nextMs
-          : baseMs;
-      windowEndMs = baseForTo + filter.toHour * 3600000;
-    } else {
-      windowEndMs = nextMs;
-    }
+  let windowEndMs;
+  if (filter.toAstrEnd) {
+    if (!sun || !sun.astrEnd) return 0;
+    windowEndMs = sun.astrEnd.getTime();
+  } else {
+    windowEndMs = baseMs + filter.toHour * 3600000;
+  }
+
+  // If end is not after start, move end to next day (handle crossing midnight)
+  if (windowEndMs <= windowStartMs) {
+    windowEndMs += 24 * 3600000;
   }
 
   let total = 0;
@@ -670,10 +640,20 @@ function updateSelectedNight(baseDate, lat, lon) {
     }
   }
 
-  // Moon phase and age via SunCalc — как раньше, но на момент "сейчас"
+  // Moon phase and age (for selected date, at current local time-of-day)
   if (window.SunCalc && SunCalc.getMoonIllumination) {
-    const now = new Date(); // текущий момент
-    const illum = SunCalc.getMoonIllumination(now);
+    const now = new Date();
+    const obsTime = new Date(
+      baseDate.getFullYear(),
+      baseDate.getMonth(),
+      baseDate.getDate(),
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds()
+    );
+
+    const illum = SunCalc.getMoonIllumination(obsTime);
     const frac = Math.round(illum.fraction * 100);
     const p = illum.phase;
     const synodicMonth = 29.530588853;
@@ -743,7 +723,8 @@ function updateSelectedNight(baseDate, lat, lon) {
   let text = '';
 
   const dowThis = baseDate.getDay();
-  const dayMatchThis = !filter.allowedDays || filter.allowedDays.includes(dowThis);
+  const dayMatchThis =
+    !filter.allowedDays || filter.allowedDays.includes(dowThis);
   let matchMinutes = 0;
   let timeOkThis = true;
 
@@ -881,7 +862,11 @@ function updateFutureTable(startDate, lat, lon) {
     tr.innerHTML = `
       <td class="night-col">
         ${fmtDate(base)}
-        ${weekendLabel ? `<span class="weekend-label">${weekendLabel}</span>` : ''}
+        ${
+          weekendLabel
+            ? `<span class="weekend-label">${weekendLabel}</span>`
+            : ''
+        }
         <span class="night-date">${L.nightPrefix}${fmtDateShort(
           base
         )} → ${fmtDateShort(shiftDays(base, 1))}</span>
@@ -918,7 +903,11 @@ function updateFutureTable(startDate, lat, lon) {
       if (filter.hideNonMatch && !matched) {
         tr.style.display = 'none';
       }
-      if (filter.highlightMatches && matched && tr.style.display !== 'none') {
+      if (
+        filter.highlightMatches &&
+        matched &&
+        tr.style.display !== 'none'
+      ) {
         if (cells[1]) cells[1].classList.add('filter-match-cell');
         if (cells[2]) cells[2].classList.add('filter-match-cell');
       }
@@ -958,11 +947,7 @@ function initFilterTimeSelects() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
 
-  // Clear in case of re-init
-  fromSel.innerHTML = '';
-  toSel.innerHTML = '';
-
-  // Numeric hours
+  // numeric hours
   for (let h = 0; h < 24; h++) {
     const opt1 = document.createElement('option');
     opt1.value = String(h);
@@ -972,34 +957,18 @@ function initFilterTimeSelects() {
     toSel.appendChild(opt2);
   }
 
-  // Special options: astronomical night start/end
-  const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
-  const astrStartLabel = L.filterAstrStart;
-  const astrEndLabel = L.filterAstrEnd;
+  // special values
+  const optStart = document.createElement('option');
+  optStart.value = 'astrStart';
+  fromSel.appendChild(optStart);
 
-  const fromAstrStart = document.createElement('option');
-  fromAstrStart.value = 'astrStart';
-  fromAstrStart.textContent = astrStartLabel;
-  fromSel.appendChild(fromAstrStart);
+  const optEnd = document.createElement('option');
+  optEnd.value = 'astrEnd';
+  toSel.appendChild(optEnd);
 
-  const fromAstrEnd = document.createElement('option');
-  fromAstrEnd.value = 'astrEnd';
-  fromAstrEnd.textContent = astrEndLabel;
-  fromSel.appendChild(fromAstrEnd);
-
-  const toAstrStart = document.createElement('option');
-  toAstrStart.value = 'astrStart';
-  toAstrStart.textContent = astrStartLabel;
-  toSel.appendChild(toAstrStart);
-
-  const toAstrEnd = document.createElement('option');
-  toAstrEnd.value = 'astrEnd';
-  toAstrEnd.textContent = astrEndLabel;
-  toSel.appendChild(toAstrEnd);
-
-  // Default values (если нет сохранённых)
-  fromSel.value = fromSel.value || '21';
-  toSel.value = toSel.value || '2';
+  // defaults
+  fromSel.value = '21';
+  toSel.value = '2';
 }
 
 function initStartDate() {
@@ -1087,7 +1056,7 @@ function registerServiceWorker() {
 window.addEventListener('DOMContentLoaded', () => {
   initStartDate();
   initFilterTimeSelects();
-  loadSettingsFromStorage();  // apply saved values to UI + settings
+  loadSettingsFromStorage(); // apply saved values to UI + settings
   applyLanguage();
   initSettingsAccordion();
   initEvents();
