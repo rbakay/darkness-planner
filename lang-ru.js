@@ -82,5 +82,7 @@ window.DARK_LANG_RU = {
     'В ближайшие 30 ночей подходящих вариантов по фильтру не найдено.',
   geoNotSupported: 'Браузер не поддерживает геолокацию.',
   geoFailed: 'Не удалось получить координаты.',
+  filterAstrStart: 'Начало астрономической ночи',
+  filterAstrEnd: 'Конец астрономической ночи',
   versionLabel: 'Darkness Planner · v1.3'
 };
