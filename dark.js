@@ -142,7 +142,7 @@ function saveSettingsToStorage() {
     const latVal = parseFloat(document.getElementById('lat').value) || 0;
     const lonVal = parseFloat(document.getElementById('lon').value) || 0;
     const fromSel = document.getElementById('filterFromHour');
-    const toSel = document.getElementById('filterToHour');
+       const toSel = document.getElementById('filterToHour');
     const durEl = document.getElementById('filterDuration');
     const hideEl = document.getElementById('filterHide');
     const hlEl = document.getElementById('filterHighlight');
