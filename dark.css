@@ -262,6 +262,20 @@ h2 {
 .block-title-emoji {
   font-size: 18px;
 }
+/* Moon phase block: icon + text */
+.moon-phase-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.moon-phase-row canvas {
+  flex: 0 0 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 25%, #2b3354 0, #050814 80%);
+  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
+}
 
 /* Lists / monospace */
 .list {
