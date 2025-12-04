@@ -1,5 +1,5 @@
 // Darkness Planner main script
-// Uses StarJs (StarJs.min.js)
+// Uses StarJs (StarJs.min.js) and SunCalc (CDN)
 
 const UI_STRINGS = {
   en: window.DARK_LANG_EN,
@@ -157,8 +157,9 @@ function saveSettingsToStorage() {
       time24: !!time24El.checked,
       dateFormat: dateFormatSel.value || 'DMY',
       lang: langSel.value || 'en',
-      filterFromHour: parseInt(fromSel.value, 10) || 0,
-      filterToHour: parseInt(toSel.value, 10) || 0,
+      // store raw values to support 'astrStart' / 'astrEnd'
+      filterFromValue: fromSel.value || '0',
+      filterToValue: toSel.value || '0',
       filterDuration: durEl.value || '0',
       filterHide: !!hideEl.checked,
       filterHighlight: !!hlEl.checked,
@@ -208,12 +209,19 @@ function loadSettingsFromStorage() {
       settings.lang = data.lang;
     }
 
-    if (typeof data.filterFromHour === 'number') {
+    // Support new string-based storage and old numeric one
+    if (typeof data.filterFromValue === 'string') {
+      fromSel.value = data.filterFromValue;
+    } else if (typeof data.filterFromHour === 'number') {
       fromSel.value = String(data.filterFromHour);
     }
-    if (typeof data.filterToHour === 'number') {
+
+    if (typeof data.filterToValue === 'string') {
+      toSel.value = data.filterToValue;
+    } else if (typeof data.filterToHour === 'number') {
       toSel.value = String(data.filterToHour);
     }
+
     if (typeof data.filterDuration !== 'undefined') {
       durEl.value = String(data.filterDuration);
     }
@@ -295,6 +303,7 @@ function updateFilterHourLabels() {
       if (!isNaN(h)) {
         opt.textContent = labelHour(h);
       }
+      // Non-numeric values (astrStart/astrEnd) оставляем как есть
     }
   });
 }
@@ -307,10 +316,27 @@ function getFilterConfig() {
   const hlEl = document.getElementById('filterHighlight');
   const dowSel = document.getElementById('dowFilter');
 
-  let fromHour = parseInt(fromSel.value, 10);
-  let toHour = parseInt(toSel.value, 10);
-  if (isNaN(fromHour)) fromHour = 0;
-  if (isNaN(toHour)) toHour = 0;
+  const fromVal = fromSel.value;
+  const toVal = toSel.value;
+
+  let fromHour = 0;
+  let toHour = 0;
+  let fromMode = 'hour';
+  let toMode = 'hour';
+
+  if (fromVal === 'astrStart' || fromVal === 'astrEnd') {
+    fromMode = fromVal;
+  } else {
+    const fh = parseInt(fromVal, 10);
+    if (!isNaN(fh)) fromHour = fh;
+  }
+
+  if (toVal === 'astrStart' || toVal === 'astrEnd') {
+    toMode = toVal;
+  } else {
+    const th = parseInt(toVal, 10);
+    if (!isNaN(th)) toHour = th;
+  }
 
   let dur = durEl.value ? durEl.value.toString().replace(',', '.') : '0';
   let durNum = parseFloat(dur);
@@ -334,6 +360,8 @@ function getFilterConfig() {
   }
 
   return {
+    fromMode,
+    toMode,
     fromHour,
     toHour,
     minMinutes,
@@ -505,7 +533,7 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
 }
 
 // Overlap between full darkness and user time window
-function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
+function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
   if (!filter || filter.minMinutes <= 0) return 0;
   if (!darknessIntervals || darknessIntervals.length === 0) return 0;
 
@@ -514,17 +542,49 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
   const nextMid = shiftDays(baseMid, 1);
   const nextMs = nextMid.getTime();
 
-  let windowStartMs = baseMs + filter.fromHour * 3600000;
+  let windowStartMs;
   let windowEndMs;
 
-  if (filter.toHour > filter.fromHour) {
-    windowEndMs = baseMs + filter.toHour * 3600000;
-  } else if (filter.toHour === filter.fromHour) {
-    // 24 hours window (effectively disabled)
-    windowEndMs = nextMs + 24 * 3600000;
+  const hasAstr = filter.fromMode !== 'hour' || filter.toMode !== 'hour';
+
+  if (!hasAstr) {
+    // Старый режим: оба значения — часы
+    windowStartMs = baseMs + filter.fromHour * 3600000;
+
+    if (filter.toHour > filter.fromHour) {
+      windowEndMs = baseMs + filter.toHour * 3600000;
+    } else if (filter.toHour === filter.fromHour) {
+      // 24 часа (фильтр по времени фактически выключен)
+      windowEndMs = nextMs + 24 * 3600000;
+    } else {
+      // пересекает полночь
+      windowEndMs = nextMs + filter.toHour * 3600000;
+    }
   } else {
-    // crosses midnight
-    windowEndMs = nextMs + filter.toHour * 3600000;
+    // Один или оба края — начало/конец астрономической ночи
+    if (filter.fromMode === 'astrStart' && sun.astrStart) {
+      windowStartMs = sun.astrStart.getTime();
+    } else if (filter.fromMode === 'astrEnd' && sun.astrEnd) {
+      windowStartMs = sun.astrEnd.getTime();
+    } else if (filter.fromMode === 'hour') {
+      windowStartMs = baseMs + filter.fromHour * 3600000;
+    } else {
+      windowStartMs = baseMs;
+    }
+
+    if (filter.toMode === 'astrStart' && sun.astrStart) {
+      windowEndMs = sun.astrStart.getTime();
+    } else if (filter.toMode === 'astrEnd' && sun.astrEnd) {
+      windowEndMs = sun.astrEnd.getTime();
+    } else if (filter.toMode === 'hour') {
+      const baseForTo =
+        filter.fromMode === 'hour' && filter.toHour <= filter.fromHour
+          ? nextMs
+          : baseMs;
+      windowEndMs = baseForTo + filter.toHour * 3600000;
+    } else {
+      windowEndMs = nextMs;
+    }
   }
 
   let total = 0;
@@ -536,74 +596,6 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
     }
   }
   return total;
-}
-
-// ---------- Moon phase via StarJS ----------
-
-function computeMoonPhaseStarJs(date) {
-  if (!window.StarJs || !StarJs.Solar || !StarJs.Time || !StarJs.Coord || !StarJs.Vector) {
-    return null;
-  }
-
-  const mjd = StarJs.Time.time2mjd(date);
-  const T = StarJs.Time.mjd2jct(mjd);
-
-  const moon = StarJs.Solar.approxMoon(T);
-  const sun = StarJs.Solar.approxSun(T);
-
-  const raMoon = moon.ra;
-  const decMoon = moon.dec;
-  const raSun = sun.ra;
-  const decSun = sun.dec;
-
-  // Elongation on the sky (angle Sun–Earth–Moon on the celestial sphere)
-  const cosPsi =
-    Math.sin(decSun) * Math.sin(decMoon) +
-    Math.cos(decSun) * Math.cos(decMoon) * Math.cos(raSun - raMoon);
-  const psi = Math.acos(Math.max(-1, Math.min(1, cosPsi)));
-
-  // Illuminated fraction (Meeus approximation):
-  // phase angle i ≈ π − ψ, k = (1 + cos i) / 2 = (1 − cos ψ) / 2
-  const fraction = (1 - Math.cos(psi)) / 2;
-
-  // To estimate "phase index" (0..1) and age:
-  // Use difference in ecliptic longitudes.
-  const eq2ecl = StarJs.Coord.equ2eclMatrix(T);
-
-  const moonEqVec = new StarJs.Vector.Polar3(1, raMoon, decMoon).toVector3();
-  const sunEqVec = new StarJs.Vector.Polar3(1, raSun, decSun).toVector3();
-
-  const moonEclVec = eq2ecl.apply(moonEqVec);
-  const sunEclVec = eq2ecl.apply(sunEqVec);
-
-  const moonEclPol = new StarJs.Vector.Polar3(moonEclVec);
-  const sunEclPol = new StarJs.Vector.Polar3(sunEclVec);
-
-  const lambdaMoon = moonEclPol.phi;
-  const lambdaSun = sunEclPol.phi;
-
-  let dLon = lambdaMoon - lambdaSun;
-  const twoPi = StarJs.Math.PI2 || (2 * Math.PI);
-  // Normalize to [0, 2π)
-  dLon = ((dLon % twoPi) + twoPi) % twoPi;
-
-  const phase01 = dLon / twoPi; // 0=new, 0.5=full, 1=next new
-
-  // Age in days
-  const synodicMonth = 29.530588853;
-  const ageDays = phase01 * synodicMonth;
-
-  // Waxing / waning using signed elongation (-π..π)
-  let signedElong = dLon;
-  if (signedElong > Math.PI) signedElong -= twoPi;
-  const waxing = signedElong > 0;
-
-  return {
-    fraction,
-    phase: phase01,
-    ageDays,
-    waxing
-  };
 }
 
 // ---------- Selected night panel ----------
@@ -678,16 +670,14 @@ function updateSelectedNight(baseDate, lat, lon) {
     }
   }
 
-  // Moon phase and age using StarJS, at current time (moment of opening / recalculation)
-  const now = new Date();
-  const phaseData = computeMoonPhaseStarJs(now);
-
-  if (!phaseData) {
-    phaseEl.textContent = L.phaseUnavailable;
-  } else {
-    const frac = Math.round(phaseData.fraction * 100);
-    const p = phaseData.phase; // 0..1, 0=new, 0.5=full
-    const ageDays = phaseData.ageDays;
+  // Moon phase and age via SunCalc — как раньше, но на момент "сейчас"
+  if (window.SunCalc && SunCalc.getMoonIllumination) {
+    const now = new Date(); // текущий момент
+    const illum = SunCalc.getMoonIllumination(now);
+    const frac = Math.round(illum.fraction * 100);
+    const p = illum.phase;
+    const synodicMonth = 29.530588853;
+    const ageDays = illum.phase * synodicMonth;
 
     let name;
     if (settings.lang === 'ru') {
@@ -715,6 +705,8 @@ function updateSelectedNight(baseDate, lat, lon) {
         `${name}, illuminated ≈ ${frac}%<br>` +
         `Moon age ≈ ${ageDays.toFixed(1)} days`;
     }
+  } else {
+    phaseEl.textContent = L.phaseUnavailable;
   }
 
   const dark = getFullDarknessForNight(baseDate, lat, lon);
@@ -730,7 +722,6 @@ function updateSelectedNight(baseDate, lat, lon) {
     const intervalsStr = formatIntervals(dark.darknessIntervals);
     const totalStr = fmtDuration(dark.totalMinutes);
 
-    // "total / всего" without touching language files
     const totalLabel = settings.lang === 'ru' ? 'всего' : 'total';
 
     darkEl.innerHTML =
@@ -760,12 +751,17 @@ function updateSelectedNight(baseDate, lat, lon) {
     matchMinutes = getFilterOverlapMinutes(
       baseDate,
       dark.darknessIntervals,
+      dark.sun,
       filter
     );
     timeOkThis = matchMinutes >= filter.minMinutes;
   }
 
-  if (!dark.sun.astrStart || !dark.sun.astrEnd || dark.darknessIntervals.length === 0) {
+  if (
+    !dark.sun.astrStart ||
+    !dark.sun.astrEnd ||
+    dark.darknessIntervals.length === 0
+  ) {
     text += L.filterNightNoDark;
   } else {
     if (hasDayFilter) {
@@ -807,7 +803,12 @@ function updateSelectedNight(baseDate, lat, lon) {
     let timeOK = true;
     let mm = 0;
     if (hasTimeFilter) {
-      mm = getFilterOverlapMinutes(d, darkNext.darknessIntervals, filter);
+      mm = getFilterOverlapMinutes(
+        d,
+        darkNext.darknessIntervals,
+        darkNext.sun,
+        filter
+      );
       timeOK = mm >= filter.minMinutes;
     }
 
@@ -904,6 +905,7 @@ function updateFutureTable(startDate, lat, lon) {
       const mm = getFilterOverlapMinutes(
         base,
         data.darknessIntervals,
+        data.sun,
         filter
       );
       timeMatch = mm >= filter.minMinutes;
@@ -955,16 +957,49 @@ function recalcAll() {
 function initFilterTimeSelects() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
+
+  // Clear in case of re-init
+  fromSel.innerHTML = '';
+  toSel.innerHTML = '';
+
+  // Numeric hours
   for (let h = 0; h < 24; h++) {
     const opt1 = document.createElement('option');
-    opt1.value = h;
+    opt1.value = String(h);
     opt1.textContent = labelHour(h);
     const opt2 = opt1.cloneNode(true);
     fromSel.appendChild(opt1);
     toSel.appendChild(opt2);
   }
-  fromSel.value = '21';
-  toSel.value = '2';
+
+  // Special options: astronomical night start/end
+  const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
+  const astrStartLabel = L.filterAstrStart;
+  const astrEndLabel = L.filterAstrEnd;
+
+  const fromAstrStart = document.createElement('option');
+  fromAstrStart.value = 'astrStart';
+  fromAstrStart.textContent = astrStartLabel;
+  fromSel.appendChild(fromAstrStart);
+
+  const fromAstrEnd = document.createElement('option');
+  fromAstrEnd.value = 'astrEnd';
+  fromAstrEnd.textContent = astrEndLabel;
+  fromSel.appendChild(fromAstrEnd);
+
+  const toAstrStart = document.createElement('option');
+  toAstrStart.value = 'astrStart';
+  toAstrStart.textContent = astrStartLabel;
+  toSel.appendChild(toAstrStart);
+
+  const toAstrEnd = document.createElement('option');
+  toAstrEnd.value = 'astrEnd';
+  toAstrEnd.textContent = astrEndLabel;
+  toSel.appendChild(toAstrEnd);
+
+  // Default values (если нет сохранённых)
+  fromSel.value = fromSel.value || '21';
+  toSel.value = toSel.value || '2';
 }
 
 function initStartDate() {
