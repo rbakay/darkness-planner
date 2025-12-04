@@ -1,5 +1,5 @@
 // Darkness Planner main script
-// Uses StarJs (StarJs.min.js) and SunCalc (CDN)
+// Uses StarJs (StarJs.min.js)
 
 const UI_STRINGS = {
   en: window.DARK_LANG_EN,
@@ -538,6 +538,74 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, filter) {
   return total;
 }
 
+// ---------- Moon phase via StarJS ----------
+
+function computeMoonPhaseStarJs(date) {
+  if (!window.StarJs || !StarJs.Solar || !StarJs.Time || !StarJs.Coord || !StarJs.Vector) {
+    return null;
+  }
+
+  const mjd = StarJs.Time.time2mjd(date);
+  const T = StarJs.Time.mjd2jct(mjd);
+
+  const moon = StarJs.Solar.approxMoon(T);
+  const sun = StarJs.Solar.approxSun(T);
+
+  const raMoon = moon.ra;
+  const decMoon = moon.dec;
+  const raSun = sun.ra;
+  const decSun = sun.dec;
+
+  // Elongation on the sky (angle Sun–Earth–Moon on the celestial sphere)
+  const cosPsi =
+    Math.sin(decSun) * Math.sin(decMoon) +
+    Math.cos(decSun) * Math.cos(decMoon) * Math.cos(raSun - raMoon);
+  const psi = Math.acos(Math.max(-1, Math.min(1, cosPsi)));
+
+  // Illuminated fraction (Meeus approximation):
+  // phase angle i ≈ π − ψ, k = (1 + cos i) / 2 = (1 − cos ψ) / 2
+  const fraction = (1 - Math.cos(psi)) / 2;
+
+  // To estimate "phase index" (0..1) and age:
+  // Use difference in ecliptic longitudes.
+  const eq2ecl = StarJs.Coord.equ2eclMatrix(T);
+
+  const moonEqVec = new StarJs.Vector.Polar3(1, raMoon, decMoon).toVector3();
+  const sunEqVec = new StarJs.Vector.Polar3(1, raSun, decSun).toVector3();
+
+  const moonEclVec = eq2ecl.apply(moonEqVec);
+  const sunEclVec = eq2ecl.apply(sunEqVec);
+
+  const moonEclPol = new StarJs.Vector.Polar3(moonEclVec);
+  const sunEclPol = new StarJs.Vector.Polar3(sunEclVec);
+
+  const lambdaMoon = moonEclPol.phi;
+  const lambdaSun = sunEclPol.phi;
+
+  let dLon = lambdaMoon - lambdaSun;
+  const twoPi = StarJs.Math.PI2 || (2 * Math.PI);
+  // Normalize to [0, 2π)
+  dLon = ((dLon % twoPi) + twoPi) % twoPi;
+
+  const phase01 = dLon / twoPi; // 0=new, 0.5=full, 1=next new
+
+  // Age in days
+  const synodicMonth = 29.530588853;
+  const ageDays = phase01 * synodicMonth;
+
+  // Waxing / waning using signed elongation (-π..π)
+  let signedElong = dLon;
+  if (signedElong > Math.PI) signedElong -= twoPi;
+  const waxing = signedElong > 0;
+
+  return {
+    fraction,
+    phase: phase01,
+    ageDays,
+    waxing
+  };
+}
+
 // ---------- Selected night panel ----------
 
 function updateSelectedNight(baseDate, lat, lon) {
@@ -610,14 +678,16 @@ function updateSelectedNight(baseDate, lat, lon) {
     }
   }
 
-  // Moon phase and age
-  if (window.SunCalc && SunCalc.getMoonIllumination) {
-    const mid = atLocalMidnight(baseDate);
-    const illum = SunCalc.getMoonIllumination(mid);
-    const frac = Math.round(illum.fraction * 100);
-    const p = illum.phase;
-    const synodicMonth = 29.530588853;
-    const ageDays = illum.phase * synodicMonth;
+  // Moon phase and age using StarJS, at current time (moment of opening / recalculation)
+  const now = new Date();
+  const phaseData = computeMoonPhaseStarJs(now);
+
+  if (!phaseData) {
+    phaseEl.textContent = L.phaseUnavailable;
+  } else {
+    const frac = Math.round(phaseData.fraction * 100);
+    const p = phaseData.phase; // 0..1, 0=new, 0.5=full
+    const ageDays = phaseData.ageDays;
 
     let name;
     if (settings.lang === 'ru') {
@@ -645,8 +715,6 @@ function updateSelectedNight(baseDate, lat, lon) {
         `${name}, illuminated ≈ ${frac}%<br>` +
         `Moon age ≈ ${ageDays.toFixed(1)} days`;
     }
-  } else {
-    phaseEl.textContent = L.phaseUnavailable;
   }
 
   const dark = getFullDarknessForNight(baseDate, lat, lon);
@@ -662,7 +730,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     const intervalsStr = formatIntervals(dark.darknessIntervals);
     const totalStr = fmtDuration(dark.totalMinutes);
 
-    // подпись "total / всего" без правки языковых файлов
+    // "total / всего" without touching language files
     const totalLabel = settings.lang === 'ru' ? 'всего' : 'total';
 
     darkEl.innerHTML =
@@ -672,6 +740,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     darkNoteEl.textContent =
       dark.darknessIntervals.length > 1 ? L.darkMulti : L.darkSingle;
   }
+
   // Filter explanation + next suitable night
   filterInfoEl.textContent = '';
   const hasTimeFilter = filter.minMinutes > 0;
