@@ -76,5 +76,5 @@ window.DARK_LANG_EN = {
   geoFailed: 'Failed to get coordinates.',
   filterAstrStart: 'Astronomical night start',
   filterAstrEnd: 'Astronomical night end',
-  versionLabel: 'Darkness Planner · v1.3'
+  versionLabel: 'Darkness Planner · v1.35'
 };
