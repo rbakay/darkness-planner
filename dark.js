@@ -586,14 +586,15 @@ function drawMoonPhase(canvas, phase, fraction) {
   ctx.fillStyle = '#fef9c3';
   ctx.beginPath();
 
-  if (isWaxing) {
-    // Waxing Moon — bright region on the right
-    ctx.ellipse(cx, cy, rx, r, 0, -Math.PI / 2, Math.PI / 2, false);
-    ctx.ellipse(cx, cy, r, r, 0, Math.PI / 2, -Math.PI / 2, false);
-  } else {
-    // Waning Moon — bright region on the left
+    if (isWaxing) {
+    // Waxing Moon – light on the **right** in real sky,
+    // but we draw the bright part on the **left** to correct previous inversion
     ctx.ellipse(cx, cy, rx, r, 0, Math.PI / 2, -Math.PI / 2, false);
     ctx.ellipse(cx, cy, r, r, 0, -Math.PI / 2, Math.PI / 2, false);
+  } else {
+    // Waning Moon – bright part on the opposite side
+    ctx.ellipse(cx, cy, rx, r, 0, -Math.PI / 2, Math.PI / 2, false);
+    ctx.ellipse(cx, cy, r, r, 0, Math.PI / 2, -Math.PI / 2, false);
   }
 
   ctx.fill();
