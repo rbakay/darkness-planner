@@ -528,86 +528,7 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   return result;
 }
 
-// ---------- Moon phase drawing on canvas (simple, from scratch) ----------
-function drawMoonPhase(canvas, phase, fraction) {
-  if (!canvas || !canvas.getContext) return;
 
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width;
-  const h = canvas.height;
-
-  // Clear previous drawing
-  ctx.clearRect(0, 0, w, h);
-
-  const cx = w / 2;
-  const cy = h / 2;
-  const r  = Math.min(w, h) / 2 - 4;
-
-  // --- Draw dark Moon disc ---
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#111827';     // dark side colour
-  ctx.fill();
-
-  // If almost new moon – keep it dark
-  if (fraction <= 0.01) {
-    return;
-  }
-
-  // If almost full moon – fill the whole disc with light colour
-  if (fraction >= 0.99) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#fef9c3';   // bright side colour
-    ctx.fill();
-    return;
-  }
-
-  // Waxing if phase < 0.5 (SunCalc convention: 0=new, 0.5=full, 1=new)
-  const isWaxing = phase < 0.5;
-
-  ctx.save();
-
-  // Clip to the circular Moon area so rectangles become crescents
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.clip();
-
-  ctx.fillStyle = '#fef9c3';     // bright side
-
-  if (isWaxing) {
-    // Waxing Moon: bright part on the RIGHT
-    //
-    // We want the fraction of the circle to increase from 0 (new) to 1 (full).
-    // We approximate this by moving a vertical cutting line from the
-    // right edge towards the left.
-    //
-    // xEdge is the x-position of the terminator (relative to the centre).
-    // For fraction = 0  -> xEdge =  r (no bright area)
-    // For fraction = 0.5-> xEdge =  0 (half disc)
-    // For fraction = 1  -> xEdge = -r (full disc)
-    const xEdge = r * (1 - 2 * fraction);
-    const left  = cx + xEdge;
-    const width = r - xEdge;
-
-    ctx.fillRect(left, cy - r, width, 2 * r);
-  } else {
-    // Waning Moon: bright part on the LEFT
-    //
-    // Similar idea, but now we fill from the left edge up to xEdge.
-    //
-    // For fraction = 0  -> xEdge = -r (no bright area)
-    // For fraction = 0.5-> xEdge =  0 (half disc)
-    // For fraction = 1  -> xEdge =  r (full disc)
-    const xEdge = r * (2 * fraction - 1);
-    const left  = cx - r;
-    const width = xEdge + r;
-
-    ctx.fillRect(left, cy - r, width, 2 * r);
-  }
-
-  ctx.restore();
-}
 
 // Overlap between full darkness and user time window
 function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
@@ -734,15 +655,36 @@ function updateSelectedNight(baseDate, lat, lon) {
       now.getMilliseconds()
     );
 
-    const illum = SunCalc.getMoonIllumination(obsTime);
-    const frac = Math.round(illum.fraction * 100);
-    const p = illum.phase;
-    const synodicMonth = 29.530588853;
-    const ageDays = illum.phase * synodicMonth;
+  // Draw Moon phase using planet_phase.js
+const illum = SunCalc.getMoonIllumination(obsTime);
+const frac = Math.round(illum.fraction * 100);
+const p = illum.phase;
+const synodicMonth = 29.530588853;
+const ageDays = illum.phase * synodicMonth;
 
-        // Updating the icon on canvas
-    const canvas = document.getElementById('moonPhaseCanvas');
-    drawMoonPhase(canvas, illum.phase, illum.fraction);
+// Draw pretty disc using planet_phase.js
+const discContainer = document.getElementById('moonPhaseDisc');
+if (discContainer && window.drawPlanetPhase) {
+
+  // Remove previously rendered phase (otherwise the DIVs stack up)
+  discContainer.innerHTML = '';
+
+  // Illumination fraction from SunCalc (0 = new, 1 = full)
+  const phaseForLib = illum.fraction;
+
+  // Determine waxing / waning:
+  // SunCalc: phase < 0.5 → waxing, phase > 0.5 → waning
+  const isWaxing = illum.phase < 0.5;
+
+  // Call the external library that draws the Moon disc
+  drawPlanetPhase(discContainer, phaseForLib, isWaxing, {
+    diameter: 70,                // Should match the CSS size
+    lightColour: '#fef9c3',      // Bright illuminated area
+    shadowColour: '#050814',     // Dark shadow area
+    earthshine: 0.15,            // Slight glow on the dark side
+    blur: 3                      // Smooth terminator edge
+  });
+}
     
     let name;
     if (settings.lang === 'ru') {
