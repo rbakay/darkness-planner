@@ -84,5 +84,5 @@ window.DARK_LANG_RU = {
   geoFailed: 'Не удалось получить координаты.',
   filterAstrStart: 'Начало астрономической ночи',
   filterAstrEnd: 'Конец астрономической ночи',
-  versionLabel: 'Darkness Planner · v1.43'
+  versionLabel: 'Darkness Planner · v1.44'
 };
