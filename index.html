@@ -22,7 +22,10 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="dark.css" />
-
+  
+  <!-- planet_phase (local file) -->
+  <script src="planet_phase.js"></script>
+  
   <!-- StarJS (local file) -->
   <script src="StarJs.min.js"></script>
 
@@ -185,9 +188,9 @@
   </div>
 
    <div class="moon-phase-row">
-    <canvas id="moonPhaseCanvas" width="80" height="80"></canvas>
-    <div class="mono" id="moonPhase">—</div>
-  </div>
+  <div id="moonPhaseDisc"></div>
+  <div class="mono" id="moonPhase">—</div>
+</div>
 </div>
       </div>
     </div>
@@ -215,7 +218,7 @@
 
     <!-- FOOTER / VERSION -->
     <div class="footer" id="versionLabel">
-      Darkness Planner · v1.44
+      Darkness Planner · v1.45
       <br>
     </div>
   </div>
