@@ -528,8 +528,7 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   return result;
 }
 
-// ---------- Moon phase drawing on canvas ----------
-
+// ---------- Moon phase drawing on canvas (new from scratch) ----------
 function drawMoonPhase(canvas, phase, fraction) {
   if (!canvas || !canvas.getContext) return;
 
@@ -537,38 +536,43 @@ function drawMoonPhase(canvas, phase, fraction) {
   const w = canvas.width;
   const h = canvas.height;
 
-  // Clear previous image
   ctx.clearRect(0, 0, w, h);
 
   const cx = w / 2;
   const cy = h / 2;
   const r  = Math.min(w, h) / 2 - 3;
 
-  // Colors
-  const bgColor   = '#050814'; // background around the Moon
-  const darkColor = '#111827'; // dark part of the Moon
+  const bgColor    = '#050814'; // space around the Moon
+  const darkColor  = '#111827'; // dark part of the Moon
   const lightColor = '#fef9c3'; // illuminated part
 
-  // Draw background disk (dark Moon)
+  // Clamp fraction to [0, 1]
+  let f = Math.max(0, Math.min(1, fraction));
+
+  // Determine waxing / waning from SunCalc phase:
+  // 0   -> New Moon
+  // 0.5 -> Full Moon
+  // 1   -> New Moon again
+  const isWaxing = phase < 0.5;
+
+  // Base disk (nice dark Moon with a rim)
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = bgColor;
   ctx.fill();
 
-  // Slightly lighter dark disk to get nice rim
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.fillStyle = darkColor;
   ctx.fill();
 
-  // Clamp fraction to [0, 1]
-  const f = Math.min(1, Math.max(0, fraction));
-
-  // New Moon – keep disk dark
-  if (f <= 0.01) return;
-
-  // Full Moon – whole disk bright
+  // --- New Moon / Full Moon shortcuts ---
+  if (f <= 0.01) {
+    // almost no light: keep it dark
+    return;
+  }
   if (f >= 0.99) {
+    // almost fully illuminated: bright full disk
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = lightColor;
@@ -576,44 +580,63 @@ function drawMoonPhase(canvas, phase, fraction) {
     return;
   }
 
-  // Determine if the Moon is waxing or waning
-  // SunCalc: phase < 0.5 => waxing, > 0.5 => waning
-  const isWaxing = phase < 0.5;
+  // We will draw a vertical strip inside the circular clip.
+  // For f >= 0.5 we paint a DARK strip on top of a bright disk (gibbous -> full).
+  // For f < 0.5  we paint a BRIGHT strip on top of a dark disk (crescent -> half).
 
-  // t is the x-position of the terminator line, normalized to [-1, 1]
-  // f = 0   => t =  1  (no light, all dark)
-  // f = 0.5 => t =  0  (half Moon)
-  // f = 1   => t = -1  (fully lit)
-  const t = 1 - 2 * f;
-
-  // Clip everything to the circular Moon area
+  // Clip to the Moon circle so all rectangles become curved segments.
   ctx.save();
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.clip();
 
-  ctx.fillStyle = lightColor;
+  if (f >= 0.5) {
+    // --- GIBBOUS → FULL: mostly bright disk with a dark stripe ---
+    // Draw entire bright disk first
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = lightColor;
+    ctx.fill();
 
-  // Compute the vertical strip to fill inside the circle.
-  // For waxing Moon: light is on the **right** side.
-  // For waning Moon: light is on the **left** side (mirror horizontally).
-  let x0, width;
+    // Width of the dark stripe inside the diameter.
+    // f = 0.5 → stripe = full diameter (half-moon)
+    // f → 1   → stripe → 0 (full Moon)
+    const darkWidth = (1 - f) * 2 * r * 2; // factor 2 to make transitions more visible
+    const clampedDarkWidth = Math.min(2 * r, Math.max(0, darkWidth));
 
-  if (isWaxing) {
-    // Light part is from x0 to the right edge of the disk
-    x0 = cx + t * r;              // terminator x in canvas coordinates
-    const xRight = cx + r;
-    width = xRight - x0;
+    let x0; // left edge of dark stripe
+
+    if (isWaxing) {
+      // Waxing gibbous: dark on the LEFT
+      x0 = cx - r;
+    } else {
+      // Waning gibbous: dark on the RIGHT
+      x0 = cx + r - clampedDarkWidth;
+    }
+
+    ctx.fillStyle = darkColor;
+    ctx.fillRect(x0, cy - r, clampedDarkWidth, 2 * r);
   } else {
-    // Waning: light part is from left edge to x0
-    x0 = cx - t * r;              // mirrored terminator
-    const xLeft = cx - r;
-    width = x0 - xLeft;
-  }
+    // --- CRESCENT → HALF: mostly dark disk with a bright stripe ---
+    // Base disk is already dark, we add the bright strip.
+    // f = 0   → stripe = 0 (new Moon)
+    // f = 0.5 → stripe = full diameter (half-moon)
+    const brightWidth = f * 2 * r * 2;
+    const clampedBrightWidth = Math.min(2 * r, Math.max(0, brightWidth));
 
-  // Draw the illuminated vertical strip; the circular clip
-  // makes it look like a proper Moon segment.
-  ctx.fillRect(x0, cy - r, width, 2 * r);
+    let x0; // left edge of bright stripe
+
+    if (isWaxing) {
+      // Waxing crescent: bright on the RIGHT
+      x0 = cx + r - clampedBrightWidth;
+    } else {
+      // Waning crescent (old crescent): bright on the LEFT
+      x0 = cx - r;
+    }
+
+    ctx.fillStyle = lightColor;
+    ctx.fillRect(x0, cy - r, clampedBrightWidth, 2 * r);
+  }
 
   ctx.restore();
 }
