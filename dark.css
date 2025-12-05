@@ -261,40 +261,47 @@ h2 {
 
 .block-title-emoji {
   font-size: 18px;
-}
+/* Row that contains the moon disc + text */
 .moon-phase-row {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap; /* prevents overlap in landscape mode */
 }
 
-/* контейнер под библиотеку */
+/* Container for planet_phase.js output */
 #moonPhaseDisc {
   position: relative;
-  width: 70px;   /* можно 60–80, как тебе нравится */
-  height: 70px;
+  width: 55px;   /* matches your chosen disc size */
+  height: 55px;
+  flex-shrink: 0; /* prevents shrinking in tight layouts */
 }
+
+/* Inner disc inserted by the library */
 .moon-phase-disc {
-  width: 80px;
-  height: 80px;
+  width: 55px;      /* must match config.diameter in JS */
+  height: 55px;
   position: relative;
   border-radius: 50%;
 }
-/* ИКОНКА ЛУНЫ (canvas) 
-.moon-phase-row canvas {
-  flex: 0 0 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 25%, #2b3354 0, #050814 80%);
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.6);
-}
-*/
 
-/* ТЕКСТ рядом с иконкой */
+/* Text block next to the moon disc */
 .moon-phase-text,
 #moonPhase {
   font-size: 13px;
   line-height: 1.4;
+  flex: 1; /* allows text to take remaining space */
+  min-width: 120px; /* prevents excessive wrapping on small screens */
+}
+
+/* Optional: slightly reduce text size in landscape */
+@media (orientation: landscape) {
+  .moon-phase-row {
+    gap: 8px;
+  }
+  #moonPhase {
+    font-size: 12px;
+  }
 }
 
 /* Lists / monospace */
