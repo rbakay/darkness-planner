@@ -274,7 +274,12 @@ h2 {
   width: 70px;   /* можно 60–80, как тебе нравится */
   height: 70px;
 }
-
+.moon-phase-disc {
+  width: 80px;
+  height: 80px;
+  position: relative;
+  border-radius: 50%;
+}
 /* ИКОНКА ЛУНЫ (canvas) 
 .moon-phase-row canvas {
   flex: 0 0 60px;
