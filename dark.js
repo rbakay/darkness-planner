@@ -678,7 +678,7 @@ if (discContainer && window.drawPlanetPhase) {
 
   // Call the external library that draws the Moon disc
   drawPlanetPhase(discContainer, phaseForLib, isWaxing, {
-    diameter: 70,                // Should match the CSS size
+    diameter: 55,                // Should match the CSS size
     lightColour: '#fef9c3',      // Bright illuminated area
     shadowColour: '#050814',     // Dark shadow area
     earthshine: 0.15,            // Slight glow on the dark side
