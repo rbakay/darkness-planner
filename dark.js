@@ -574,7 +574,7 @@ function drawMoonPhase(canvas, phase, fraction) {
   // Normalize key parameters
   const isWaxing = phase < 0.5;  // true = waxing (light on the right side)
   const k = 2 * fraction - 1;    // maps illumination fraction to [-1..1]
-  const rx = r * Math.abs(k);    // horizontal radius of bright part
+    const rx = r * (1 - Math.abs(k));      // widest at quarter, thin near new/full
 
   ctx.save();
 
