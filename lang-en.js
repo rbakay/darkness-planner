@@ -4,34 +4,70 @@ window.DARK_LANG_EN = {
   topHint:
     'Full darkness: astronomical night (Sun below −18°) while the Moon is below the horizon.<br>' +
     'Night: selected date <b>D</b> → <b>D+1</b> (for example, night 29→30).',
+
   labelLat: 'Latitude, ° (north +)',
   labelLon: 'Longitude, ° (east + / west −)',
   labelStartDate: 'Start date of night',
+
   btnGeo: 'My location',
   btnCalc: 'Recalculate',
+
   labelTimeFormat: 'Time format',
   timeFormatHint: '24 hours (off — AM/PM)',
   labelDateFormat: 'Date format',
   labelLanguage: 'Language / Язык',
+
+  // Tabs
+  tabBasic: 'Basic',
+  tabDarkness: 'Darkness',
+  tabWeather: 'Weather',
+
+  // Units section
+  unitsTitle: 'Units',
+  labelWindUnits: 'Wind units',
+  labelTempUnits: 'Temperature units',
+
+  // Section titles
+  darkFilterTitle: 'Darkness filter',
+  weatherFilterTitle: 'Weather filter',
+
+  // Darkness filter
   filterSubtitle:
     'Filter: find nights where the selected time window has at least the given amount of full darkness.',
   labelFilterFrom: 'Time filter: from',
   labelFilterTo: 'Time filter: to',
   labelFilterDuration: 'Minimum darkness duration, hours',
   labelDowFilter: 'Day-of-week filter',
+
   dowEmpty: 'Empty (all days)',
   dowFriSat: 'Fri, Sat',
   dowFriSatSun: 'Fri, Sat, Sun',
   dowSatSun: 'Sat, Sun',
+
   labelDisplayOptions: 'Display',
   filterHideLabel: 'Hide nights that do not pass the filter',
   filterHighlightLabel: 'Highlight nights that pass the filter',
+
   filterHint:
     'If “Minimum duration” = 0, the time filter is disabled (but day-of-week filter still applies if set).',
+
+  // Weather filter UI
+  weatherEnableHint: 'Mark nights where weather matches the Darkness filter window',
+  weatherMaxCloud: 'Max cloud (%)',
+  weatherMaxWind: 'Max wind',
+  weatherMaxHumidity: 'Max humidity (%)',
+  weatherMinConsec: 'Min consecutive good hours',
+  weatherHint:
+    'A “good hour” = cloud ≤ threshold AND wind ≤ threshold AND humidity ≤ threshold.<br>' +
+    'The night is marked only if there are at least N consecutive good hours inside your Darkness filter window.',
+
+  // Selected night blocks
   blockDarkTitle: 'Full darkness (selected night)',
   blockSunTitle: 'Sun',
   blockMoonTitle: 'Moon (for this night)',
   blockPhaseTitle: 'Moon phase',
+
+  // Future table
   futureTitle: 'Next 30 nights — full darkness windows',
   thNight: 'Night',
   thDarkness: 'Full darkness',
@@ -42,16 +78,24 @@ window.DARK_LANG_EN = {
   weekendSun: ' (Sunday)',
   nightPrefix: 'night ',
   nightHeaderPrefix: 'Night ',
+
+  // Sun
   sunSunset: 'Sunset',
   sunSunrise: 'Sunrise',
   sunAstrStart: 'Astron. night start',
   sunAstrEnd: 'Astron. night end',
+
+  // Moon
   moonBelowAllNight: 'The Moon stays below the horizon all night.',
   moonAboveAllNight: 'The Moon stays above the horizon all night.',
   moonNoEvents: 'No moonrise/moonset within this night.',
   moonRisePrefix: 'Rise: ',
   moonSetPrefix: 'Set: ',
+
+  // Phase
   phaseUnavailable: 'Moon phase unavailable',
+
+  // No-darkness messages
   noAstrNight:
     '<span class="warn">No astronomical night (Sun does not go below −18°).</span>',
   noFullDark:
@@ -59,6 +103,8 @@ window.DARK_LANG_EN = {
   darkMulti: 'There are several separate full-darkness windows during this night.',
   darkSingle:
     'Between these times the Moon is below the horizon and it is astronomical night.',
+
+  // Filter status text
   filterNightNoDark: 'This night has no astronomical darkness without the Moon. ',
   filterDayIn: 'Current night is within the selected days of week. ',
   filterDayOut: 'Current night is outside of the selected days of week. ',
@@ -67,14 +113,39 @@ window.DARK_LANG_EN = {
   filterTimeNotOkPrefix: 'In the selected time window there are only ',
   filterTimeNotOkSuffix: ' of darkness (less than required ',
   filterTimeClose: '). ',
+
   nextNightPrefix: 'Next suitable night: ',
   nextNightTomorrow: 'tomorrow',
   nextNightAfter: 'the day after tomorrow',
   nextNightInDays: 'in {D} days',
   nextNone: 'No suitable nights found within the next 30 nights.',
+
+  // Geo
   geoNotSupported: 'Geolocation is not supported by this browser.',
   geoFailed: 'Failed to get coordinates.',
+
+  // Filter dropdown special options
   filterAstrStart: 'Astronomical night start',
   filterAstrEnd: 'Astronomical night end',
-  versionLabel: 'Darkness Planner · v1.46'
+
+  // Hourly details (expanded row)
+  weatherDetailsTitle: 'Weather (astronomical night hours)',
+  weatherNoData: 'No forecast data for this night (outside forecast range).',
+
+  // Hourly table columns
+  colTime: 'Time',
+  colCloud: 'Cloud %',
+  colWind: 'Wind',
+  colHumidity: 'Humidity %',
+  colAOD: 'AOD',
+  colSeeing: 'Seeing',
+  
+    seeingLabels: {
+    excellent: 'Excellent',
+    good: 'Good',
+    average: 'Average',
+    poor: 'Poor'
+  },
+
+  versionLabel: 'Darkness Planner · v1.47'
 };

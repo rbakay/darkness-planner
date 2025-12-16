@@ -5,43 +5,31 @@
   <title>Darkness Planner</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <!-- Status / system colors for PWA -->
   <meta name="theme-color" content="#050814">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-  <!-- PWA manifest -->
   <link rel="manifest" href="manifest.webmanifest" />
 
-  
-  <!-- App icons -->
   <link rel="apple-touch-icon" sizes="180x180" href="dark-180.png">
   <link rel="icon" type="image/png" sizes="32x32" href="dark-32.png">
   <link rel="icon" type="image/png" sizes="16x16" href="dark-16.png">
-  <link rel="manifest" href="manifest.webmanifest">
 
-  <!-- Styles -->
   <link rel="stylesheet" href="dark.css" />
-  
-  <!-- planet_phase (local file) -->
-  <script src="planet_phase.js"></script>
-  
-  <!-- StarJS (local file) -->
-  <script src="StarJs.min.js"></script>
 
-  <!-- SunCalc – used for Moon phase and illumination -->
+  <script src="planet_phase.js"></script>
+  <script src="StarJs.min.js"></script>
   <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
 
-  <!-- Language packs -->
   <script src="lang-en.js"></script>
   <script src="lang-ru.js"></script>
-    
-  <!-- Main application logic -->
+
+  <script defer src="weather.js"></script>
   <script defer src="dark.js"></script>
 </head>
+
 <body>
   <div class="layout">
-    <!-- SETTINGS (COLLAPSIBLE) -->
     <div class="card settings-card collapsed" id="settingsCard">
       <div class="settings-header">
         <div class="settings-title-block">
@@ -56,105 +44,193 @@
           </div>
         </div>
       </div>
+
       <div class="settings-body">
         <div class="subtitle" id="i_topHint"></div>
 
-        <!-- Coordinates + date -->
-        <div class="controls">
-          <div class="field">
-            <label for="lat" id="i_labelLat"></label>
-            <input id="lat" type="number" step="0.0001" value="35.2271">
-          </div>
-          <div class="field">
-            <label for="lon" id="i_labelLon"></label>
-            <input id="lon" type="number" step="0.0001" value="-80.8431">
-          </div>
-          <div class="field">
-            <label for="startDate" id="i_labelStartDate"></label>
-            <input id="startDate" type="date">
-          </div>
+        <!-- TABS -->
+        <div class="tabs" role="tablist" aria-label="Settings tabs">
+          <button class="tab-btn active" id="i_tabBasic" type="button" data-tab="basic" role="tab" aria-selected="true"></button>
+          <button class="tab-btn" id="i_tabDarkness" type="button" data-tab="darkness" role="tab" aria-selected="false"></button>
+          <button class="tab-btn" id="i_tabWeather" type="button" data-tab="weather" role="tab" aria-selected="false"></button>
         </div>
 
-        <!-- Buttons row (same IDs, just moved under date) -->
-        <div class="button-row">
-          <button id="btnGeo" type="button"></button>
-          <button id="btnCalc" type="button"></button>
-        </div>
+        <!-- ========== BASIC ========== -->
+        <div class="tab-panel active" data-panel="basic" role="tabpanel">
 
-        <!-- Time/date format + language -->
-        <div class="controls">
-          <div class="field">
-            <label id="i_labelTimeFormat"></label>
-            <div class="toggle-line">
-              <input id="time24" type="checkbox" checked>
-              <span id="i_timeFormatHint"></span>
+          <!-- Coordinates + date (MOVED HERE) -->
+          <div class="controls" style="margin-top: 8px;">
+            <div class="field">
+              <label for="lat" id="i_labelLat"></label>
+              <input id="lat" type="number" step="0.0001" value="35.2271">
+            </div>
+            <div class="field">
+              <label for="lon" id="i_labelLon"></label>
+              <input id="lon" type="number" step="0.0001" value="-80.8431">
+            </div>
+            <div class="field">
+              <label for="startDate" id="i_labelStartDate"></label>
+              <input id="startDate" type="date">
             </div>
           </div>
-          <div class="field">
-            <label for="dateFormat" id="i_labelDateFormat"></label>
-            <select id="dateFormat">
-              <option value="DMY" selected>DD.MM.YYYY</option>
-              <option value="DMY2">DD.MM.YY</option>
-              <option value="MDY">MM/DD/YYYY</option>
-              <option value="YMD">YYYY-MM-DD</option>
-            </select>
+
+          <!-- Buttons row (MOVED HERE) -->
+          <div class="button-row">
+            <button id="btnGeo" type="button"></button>
+            <button id="btnCalc" type="button"></button>
           </div>
-          <div class="field">
-            <label for="langSelect" id="i_labelLanguage"></label>
-            <select id="langSelect">
-              <option value="en" selected>English</option>
-              <option value="ru">Русский</option>
-            </select>
+
+          <!-- Time/date format + language -->
+          <div class="controls">
+            <div class="field">
+              <label id="i_labelTimeFormat"></label>
+              <div class="toggle-line">
+                <input id="time24" type="checkbox" checked>
+                <span id="i_timeFormatHint"></span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="dateFormat" id="i_labelDateFormat"></label>
+              <select id="dateFormat">
+                <option value="DMY" selected>DD.MM.YYYY</option>
+                <option value="DMY2">DD.MM.YY</option>
+                <option value="MDY">MM/DD/YYYY</option>
+                <option value="YMD">YYYY-MM-DD</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="langSelect" id="i_labelLanguage"></label>
+              <select id="langSelect">
+                <option value="en" selected>English</option>
+                <option value="ru">Русский</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Units -->
+          <div class="filter-section" style="margin-top: 10px;">
+            <div class="filter-section-title" id="i_unitsTitle"></div>
+
+            <div class="controls">
+              <div class="field">
+                <label for="weatherWindUnits" id="i_labelWindUnits"></label>
+                <select id="weatherWindUnits">
+                  <option value="ms" selected>m/s</option>
+                  <option value="kmh">km/h</option>
+                  <option value="mph">mph</option>
+                </select>
+              </div>
+
+              <!-- Keep temperature units in DOM, but hidden for now -->
+              <div class="field hidden" id="tempUnitsField">
+                <label for="weatherTempUnits" id="i_labelTempUnits"></label>
+                <select id="weatherTempUnits">
+                  <option value="c" selected>°C</option>
+                  <option value="f">°F</option>
+                </select>
+              </div>
+            </div>
+
           </div>
         </div>
 
-        <!-- Time filter and weekday filter -->
-        <div class="subtitle" style="margin-top: 4px;" id="i_filterSubtitle"></div>
+        <!-- ========== DARKNESS ========== -->
+        <div class="tab-panel" data-panel="darkness" role="tabpanel">
+          <div class="subtitle" style="margin-top: 8px;" id="i_filterSubtitle"></div>
 
-        <div class="controls">
-          <div class="field">
-            <label for="filterFromHour" id="i_labelFilterFrom"></label>
-            <select id="filterFromHour"></select>
-          </div>
-          <div class="field">
-            <label for="filterToHour" id="i_labelFilterTo"></label>
-            <select id="filterToHour"></select>
-          </div>
-          <div class="field">
-            <label for="filterDuration" id="i_labelFilterDuration"></label>
-            <input id="filterDuration" type="number" min="0" step="0.5" value="0">
-          </div>
-          <div class="field">
-            <label for="dowFilter" id="i_labelDowFilter"></label>
-            <select id="dowFilter">
-              <option value="" id="i_dowEmpty"></option>
-              <option value="fri_sat" id="i_dowFriSat"></option>
-              <option value="fri_sat_sun" id="i_dowFriSatSun"></option>
-              <option value="sat_sun" id="i_dowSatSun"></option>
-            </select>
-          </div>
-          <div class="field">
-            <label id="i_labelDisplayOptions"></label>
-            <div class="toggle-line">
-              <input id="filterHide" type="checkbox">
-              <span id="i_filterHideLabel"></span>
+          <div class="filter-section">
+            <div class="filter-section-title" id="i_darkFilterTitle"></div>
+
+            <div class="controls">
+              <div class="field">
+                <label for="filterFromHour" id="i_labelFilterFrom"></label>
+                <select id="filterFromHour"></select>
+              </div>
+              <div class="field">
+                <label for="filterToHour" id="i_labelFilterTo"></label>
+                <select id="filterToHour"></select>
+              </div>
+              <div class="field">
+                <label for="filterDuration" id="i_labelFilterDuration"></label>
+                <input id="filterDuration" type="number" min="0" step="0.5" value="0">
+              </div>
+              <div class="field">
+                <label for="dowFilter" id="i_labelDowFilter"></label>
+                <select id="dowFilter">
+                  <option value="" id="i_dowEmpty"></option>
+                  <option value="fri_sat" id="i_dowFriSat"></option>
+                  <option value="fri_sat_sun" id="i_dowFriSatSun"></option>
+                  <option value="sat_sun" id="i_dowSatSun"></option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label id="i_labelDisplayOptions"></label>
+                <div class="toggle-line">
+                  <input id="filterHide" type="checkbox">
+                  <span id="i_filterHideLabel"></span>
+                </div>
+                <div class="toggle-line">
+                  <input id="filterHighlight" type="checkbox" checked>
+                  <span id="i_filterHighlightLabel"></span>
+                </div>
+              </div>
             </div>
-            <div class="toggle-line">
-              <input id="filterHighlight" type="checkbox" checked>
-              <span id="i_filterHighlightLabel"></span>
+
+            <div class="muted" style="margin-top: 6px;" id="i_filterHint"></div>
+          </div>
+
+       
+        </div>
+
+        <!-- ========== WEATHER ========== -->
+        <div class="tab-panel" data-panel="weather" role="tabpanel">
+          <div class="filter-section" style="margin-top: 10px;">
+            <div class="filter-section-title" id="i_weatherFilterTitle"></div>
+
+            <div class="weather-filter">
+
+  <div class="toggle-line weather-toggle">
+    <input id="weatherEnabled" type="checkbox">
+    <label for="weatherEnabled" id="i_weatherEnableHint"></label>
+  </div>
+
+  <div class="controls">
+    <!-- ВСЕ параметры погоды тут -->
+              <div class="field">
+                <label for="weatherMaxCloud" id="i_weatherMaxCloud"></label>
+                <input id="weatherMaxCloud" type="number" min="0" max="100" value="10">
+              </div>
+
+              <div class="field">
+                <label for="weatherMaxWind" id="i_weatherMaxWind"></label>
+                <input id="weatherMaxWind" type="number" min="0" step="0.5" value="6">
+              </div>
+
+              <div class="field">
+                <label for="weatherMaxHumidity" id="i_weatherMaxHumidity"></label>
+                <input id="weatherMaxHumidity" type="number" min="0" max="100" value="70">
+              </div>
+
+              <div class="field">
+                <label for="weatherMinConsec" id="i_weatherMinConsec"></label>
+                <input id="weatherMinConsec" type="number" min="1" step="1" value="3">
+              </div>
             </div>
+
+            <div class="muted" style="margin-top: 6px;" id="i_weatherHint"></div>
           </div>
         </div>
 
-        <div class="muted" id="i_filterHint"></div>
       </div>
     </div>
-
+ </div>
     <!-- SELECTED NIGHT -->
     <div class="card">
       <h2 id="nightTitle">Night</h2>
 
-      <!-- Full darkness block -->
       <div class="block" style="margin-bottom: 8px;">
         <div class="block-title">
           <span class="block-title-emoji">🌑</span>
@@ -165,7 +241,6 @@
         <div class="muted" id="filterInfo" style="margin-top: 4px;"></div>
       </div>
 
-      <!-- Sun / Moon / Phase -->
       <div class="row">
         <div class="block">
           <div class="block-title">
@@ -174,6 +249,7 @@
           </div>
           <ul class="list mono" id="sunInfo"></ul>
         </div>
+
         <div class="block">
           <div class="block-title">
             <span class="block-title-emoji">🌙</span>
@@ -181,17 +257,18 @@
           </div>
           <ul class="list mono" id="moonInfo"></ul>
         </div>
-        <div class="block">
-  <div class="block-title">
-    <span class="block-title-emoji">🌓</span>
-    <span id="i_blockPhaseTitle"></span>
-  </div>
 
-   <div class="moon-phase-row">
-  <div id="moonPhaseDisc" class="moon-phase-disc"></div>
-  <div class="mono" id="moonPhase">—</div>
-</div>
-</div>
+        <div class="block">
+          <div class="block-title">
+            <span class="block-title-emoji">🌓</span>
+            <span id="i_blockPhaseTitle"></span>
+          </div>
+
+          <div class="moon-phase-row">
+            <div id="moonPhaseDisc" class="moon-phase-disc"></div>
+            <div class="mono" id="moonPhase">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -216,9 +293,8 @@
       <div class="muted" style="margin-top: 6px;" id="i_nightLegend"></div>
     </div>
 
-    <!-- FOOTER / VERSION -->
     <div class="footer" id="versionLabel">
-      Darkness Planner · v1.46
+      Darkness Planner · v1.47
       <br>
     </div>
   </div>

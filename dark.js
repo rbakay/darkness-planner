@@ -12,9 +12,35 @@ const STORAGE_KEY = 'darkness-planner-settings-v1';
 // Global UI settings
 const settings = {
   time24: true,
-  dateFormat: 'DMY', // default: DD.MM.YYYY
+  dateFormat: 'DMY',
   lang: 'en'
 };
+
+// ---------- Weather integration (hooks, uses weather.js if present) ----------
+
+// Legacy fallback state (in case weather.js is not loaded)
+const WEATHER = {
+  enabled: false,
+  ready: false
+};
+
+function weatherIsEnabled() {
+  if (window.WeatherService && typeof WeatherService.isEnabled === 'function') {
+    return WeatherService.isEnabled();
+  }
+  return WEATHER.enabled === true;
+}
+
+function weatherMatchForNight(baseDate, darkData, filter) {
+  if (!window.WeatherService) return null;
+  if (typeof WeatherService.readConfigFromUI === 'function') {
+    WeatherService.readConfigFromUI();
+  }
+  if (!WeatherService.isEnabled || !WeatherService.isEnabled()) return null;
+  if (!WeatherService.isReady || !WeatherService.isReady()) return null;
+  if (typeof WeatherService.evaluateNight !== 'function') return null;
+  return WeatherService.evaluateNight(baseDate, darkData, filter);
+}
 
 // ---------- Generic helpers ----------
 
@@ -38,7 +64,6 @@ function diffMinutes(a, b) {
   return Math.round((b.getTime() - a.getTime()) / 60000);
 }
 
-// Full date according to selected format
 function fmtDate(d) {
   const yyyy = d.getFullYear();
   const mm = pad2(d.getMonth() + 1);
@@ -48,7 +73,7 @@ function fmtDate(d) {
       return `${mm}/${dd}/${yyyy}`;
     case 'YMD':
       return `${yyyy}-${mm}-${dd}`;
-    case 'DMY2': // DD.MM.YY
+    case 'DMY2':
       return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
     case 'DMY':
     default:
@@ -56,7 +81,6 @@ function fmtDate(d) {
   }
 }
 
-// Short date used in brackets
 function fmtDateShort(d) {
   const yyyy = d.getFullYear();
   const mm = pad2(d.getMonth() + 1);
@@ -90,20 +114,14 @@ function fmtTime(d) {
 
 function fmtDuration(mins) {
   const lang = settings.lang;
-  if (!mins || mins <= 0) {
-    return lang === 'ru' ? '0 мин' : '0 min';
-  }
+  if (!mins || mins <= 0) return lang === 'ru' ? '0 мин' : '0 min';
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   if (lang === 'ru') {
-    if (h > 0) {
-      return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
-    }
+    if (h > 0) return m > 0 ? `${h} ч ${m} мин` : `${h} ч`;
     return `${m} мин`;
   } else {
-    if (h > 0) {
-      return m > 0 ? `${h} h ${m} min` : `${h} h`;
-    }
+    if (h > 0) return m > 0 ? `${h} h ${m} min` : `${h} h`;
     return `${m} min`;
   }
 }
@@ -114,14 +132,111 @@ function formatIntervals(intervals) {
 }
 
 function labelHour(h) {
-  if (settings.time24) {
-    return pad2(h) + ':00';
-  } else {
-    let suffix = h >= 12 ? 'PM' : 'AM';
-    let h12 = h % 12;
-    if (h12 === 0) h12 = 12;
-    return h12 + ':00 ' + suffix;
+  if (settings.time24) return pad2(h) + ':00';
+  let suffix = h >= 12 ? 'PM' : 'AM';
+  let h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return h12 + ':00 ' + suffix;
+}
+
+// ---------- Units (wind/temp placeholders) ----------
+
+function getWindUnitKey() {
+  const sel = document.getElementById('weatherWindUnits');
+  return sel ? (sel.value || 'ms') : 'ms'; // 'ms' | 'kmh' | 'mph'
+}
+
+function windUnitLabelText(unitKey) {
+  if (unitKey === 'kmh') return 'km/h';
+  if (unitKey === 'mph') return 'mph';
+  return 'm/s';
+}
+
+function windMsToUnit(ms, unitKey) {
+  if (typeof ms !== 'number' || !isFinite(ms)) return null;
+  if (unitKey === 'kmh') return ms * 3.6;
+  if (unitKey === 'mph') return ms * 2.2369362920544;
+  return ms;
+}
+
+function windUnitToMs(v, unitKey) {
+  const num = typeof v === 'number' ? v : parseFloat(String(v).replace(',', '.'));
+  if (!isFinite(num)) return null;
+  if (unitKey === 'kmh') return num / 3.6;
+  if (unitKey === 'mph') return num / 2.2369362920544;
+  return num;
+}
+
+function updateWindUnitLabelUI() {
+  const span = document.getElementById('windUnitLabel');
+  if (!span) return;
+  span.textContent = windUnitLabelText(getWindUnitKey());
+}
+
+// ---------- Tabs (Basic / Darkness / Weather) ----------
+
+let currentTab = 'basic';
+
+function initTabs() {
+  const tabButtons = Array.from(document.querySelectorAll('.tab-btn[data-tab]'));
+  const panels = Array.from(document.querySelectorAll('.tab-panel[data-panel]'));
+  if (!tabButtons.length || !panels.length) return;
+
+  function activate(tabName, persist = true) {
+    currentTab = tabName;
+
+    tabButtons.forEach(btn => {
+      const isActive = btn.dataset.tab === tabName;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    panels.forEach(p => {
+      p.classList.toggle('active', p.dataset.panel === tabName);
+    });
+
+    if (persist) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const data = raw ? JSON.parse(raw) : {};
+        data.activeTab = tabName;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {}
+    }
   }
+
+  tabButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // чтобы не закрывать settings-card
+      activate(btn.dataset.tab || 'basic');
+    });
+  });
+
+  // Keyboard support (Left/Right)
+  tabButtons.forEach((btn, idx) => {
+    btn.addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault();
+      const dir = e.key === 'ArrowRight' ? 1 : -1;
+      const next = (idx + dir + tabButtons.length) % tabButtons.length;
+      tabButtons[next].focus();
+      activate(tabButtons[next].dataset.tab || 'basic');
+    });
+  });
+
+  // Restore from storage if present
+  let desired = 'basic';
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data.activeTab) desired = String(data.activeTab);
+    }
+  } catch (e) {}
+
+  const exists = tabButtons.some(b => b.dataset.tab === desired);
+  activate(exists ? desired : (tabButtons[0].dataset.tab || 'basic'), false);
 }
 
 // ---------- Settings + language ----------
@@ -131,18 +246,18 @@ function updateSettingsFromUI() {
   const df = document.getElementById('dateFormat');
   const langSel = document.getElementById('langSelect');
 
-  settings.time24 = !!t24.checked;
-  settings.dateFormat = df.value || 'DMY';
-  settings.lang = langSel.value || 'en';
+  if (t24) settings.time24 = !!t24.checked;
+  if (df) settings.dateFormat = df.value || 'DMY';
+  if (langSel) settings.lang = langSel.value || 'en';
 }
 
-// Save all important settings to localStorage
 function saveSettingsToStorage() {
   try {
-    const latVal = parseFloat(document.getElementById('lat').value) || 0;
-    const lonVal = parseFloat(document.getElementById('lon').value) || 0;
+    const latEl = document.getElementById('lat');
+    const lonEl = document.getElementById('lon');
+
     const fromSel = document.getElementById('filterFromHour');
-       const toSel = document.getElementById('filterToHour');
+    const toSel = document.getElementById('filterToHour');
     const durEl = document.getElementById('filterDuration');
     const hideEl = document.getElementById('filterHide');
     const hlEl = document.getElementById('filterHighlight');
@@ -151,39 +266,54 @@ function saveSettingsToStorage() {
     const langSel = document.getElementById('langSelect');
     const time24El = document.getElementById('time24');
 
+    const wEn = document.getElementById('weatherEnabled');
+    const wC = document.getElementById('weatherMaxCloud');
+    const wW = document.getElementById('weatherMaxWind');
+    const wH = document.getElementById('weatherMaxHumidity');
+    const wN = document.getElementById('weatherMinConsec');
+    const wWindUnits = document.getElementById('weatherWindUnits');
+    const wTempUnits = document.getElementById('weatherTempUnits');
+
     const data = {
-      lat: latVal,
-      lon: lonVal,
-      time24: !!time24El.checked,
-      dateFormat: dateFormatSel.value || 'DMY',
-      lang: langSel.value || 'en',
-      filterFromHour: fromSel.value,
-      filterToHour: toSel.value,
-      filterDuration: durEl.value || '0',
-      filterHide: !!hideEl.checked,
-      filterHighlight: !!hlEl.checked,
-      dowFilter: dowSel.value || ''
+      lat: latEl ? (parseFloat(latEl.value) || 0) : 0,
+      lon: lonEl ? (parseFloat(lonEl.value) || 0) : 0,
+      time24: !!(time24El && time24El.checked),
+      dateFormat: dateFormatSel ? (dateFormatSel.value || 'DMY') : 'DMY',
+      lang: langSel ? (langSel.value || 'en') : 'en',
+      filterFromHour: fromSel ? fromSel.value : '21',
+      filterToHour: toSel ? toSel.value : '2',
+      filterDuration: durEl ? (durEl.value || '0') : '0',
+      filterHide: !!(hideEl && hideEl.checked),
+      filterHighlight: !!(hlEl && hlEl.checked),
+      dowFilter: dowSel ? (dowSel.value || '') : '',
+
+      weatherEnabled: !!(wEn && wEn.checked),
+      weatherMaxCloud: wC ? (wC.value ?? '10') : '10',
+      weatherMaxWind: wW ? (wW.value ?? '6') : '6',
+      weatherMaxHumidity: wH ? (wH.value ?? '70') : '70',
+      weatherMinConsec: wN ? (wN.value ?? '3') : '3',
+
+      weatherWindUnits: wWindUnits ? (wWindUnits.value || 'ms') : 'ms',
+      weatherTempUnits: wTempUnits ? (wTempUnits.value || 'c') : 'c',
+
+      activeTab: currentTab || 'basic'
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) {
-    // If localStorage is unavailable, silently ignore
-  }
+  } catch (e) {}
 }
 
-// Load settings from localStorage and apply to UI + settings object
 function loadSettingsFromStorage() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw);
 
-    if (typeof data.lat === 'number') {
-      document.getElementById('lat').value = data.lat.toFixed(4);
-    }
-    if (typeof data.lon === 'number') {
-      document.getElementById('lon').value = data.lon.toFixed(4);
-    }
+    const latEl = document.getElementById('lat');
+    const lonEl = document.getElementById('lon');
+
+    if (latEl && typeof data.lat === 'number') latEl.value = data.lat.toFixed(4);
+    if (lonEl && typeof data.lon === 'number') lonEl.value = data.lon.toFixed(4);
 
     const time24El = document.getElementById('time24');
     const dateFormatSel = document.getElementById('dateFormat');
@@ -195,40 +325,47 @@ function loadSettingsFromStorage() {
     const hlEl = document.getElementById('filterHighlight');
     const dowSel = document.getElementById('dowFilter');
 
-    if ('time24' in data) {
+    if (time24El && ('time24' in data)) {
       time24El.checked = !!data.time24;
       settings.time24 = !!data.time24;
     }
-    if (data.dateFormat) {
+    if (dateFormatSel && data.dateFormat) {
       dateFormatSel.value = data.dateFormat;
       settings.dateFormat = data.dateFormat;
     }
-    if (data.lang) {
+    if (langSel && data.lang) {
       langSel.value = data.lang;
       settings.lang = data.lang;
     }
 
-    if (typeof data.filterFromHour === 'string') {
-      fromSel.value = data.filterFromHour;
-    }
-    if (typeof data.filterToHour === 'string') {
-      toSel.value = data.filterToHour;
-    }
-    if (typeof data.filterDuration !== 'undefined') {
-      durEl.value = String(data.filterDuration);
-    }
-    if ('filterHide' in data) {
-      hideEl.checked = !!data.filterHide;
-    }
-    if ('filterHighlight' in data) {
-      hlEl.checked = !!data.filterHighlight;
-    }
-    if (typeof data.dowFilter === 'string') {
-      dowSel.value = data.dowFilter;
-    }
-  } catch (e) {
-    // ignore malformed storage
-  }
+    if (fromSel && typeof data.filterFromHour === 'string') fromSel.value = data.filterFromHour;
+    if (toSel && typeof data.filterToHour === 'string') toSel.value = data.filterToHour;
+    if (durEl && typeof data.filterDuration !== 'undefined') durEl.value = String(data.filterDuration);
+    if (hideEl && ('filterHide' in data)) hideEl.checked = !!data.filterHide;
+    if (hlEl && ('filterHighlight' in data)) hlEl.checked = !!data.filterHighlight;
+    if (dowSel && typeof data.dowFilter === 'string') dowSel.value = data.dowFilter;
+
+    const wEn = document.getElementById('weatherEnabled');
+    const wC = document.getElementById('weatherMaxCloud');
+    const wW = document.getElementById('weatherMaxWind');
+    const wH = document.getElementById('weatherMaxHumidity');
+    const wN = document.getElementById('weatherMinConsec');
+    const wWindUnits = document.getElementById('weatherWindUnits');
+    const wTempUnits = document.getElementById('weatherTempUnits');
+
+    if (wEn && ('weatherEnabled' in data)) wEn.checked = !!data.weatherEnabled;
+    if (wC && data.weatherMaxCloud != null) wC.value = String(data.weatherMaxCloud);
+    if (wW && data.weatherMaxWind != null) wW.value = String(data.weatherMaxWind);
+    if (wH && data.weatherMaxHumidity != null) wH.value = String(data.weatherMaxHumidity);
+    if (wN && data.weatherMinConsec != null) wN.value = String(data.weatherMinConsec);
+
+    if (wWindUnits && data.weatherWindUnits) wWindUnits.value = String(data.weatherWindUnits);
+    if (wTempUnits && data.weatherTempUnits) wTempUnits.value = String(data.weatherTempUnits);
+
+    updateWindUnitLabelUI();
+
+    if (data.activeTab) currentTab = String(data.activeTab);
+  } catch (e) {}
 }
 
 function applyLanguage() {
@@ -237,57 +374,96 @@ function applyLanguage() {
 
   document.documentElement.lang = lang === 'ru' ? 'ru' : 'en';
 
-  document.getElementById('i_appSubtitle').innerHTML = L.appSubtitle;
-  document.getElementById('i_topHint').innerHTML = L.topHint;
+  const setText = (id, val, html = false) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (html) el.innerHTML = val;
+    else el.textContent = val;
+  };
 
-  document.getElementById('i_labelLat').textContent = L.labelLat;
-  document.getElementById('i_labelLon').textContent = L.labelLon;
-  document.getElementById('i_labelStartDate').textContent = L.labelStartDate;
+  // Core header texts
+  setText('i_appSubtitle', L.appSubtitle, true);
+  setText('i_topHint', L.topHint, true);
 
-  document.getElementById('btnGeo').textContent = L.btnGeo;
-  document.getElementById('btnCalc').textContent = L.btnCalc;
+  // Basic section labels/buttons
+  setText('i_labelLat', L.labelLat);
+  setText('i_labelLon', L.labelLon);
+  setText('i_labelStartDate', L.labelStartDate);
 
-  document.getElementById('i_labelTimeFormat').textContent = L.labelTimeFormat;
-  document.getElementById('i_timeFormatHint').textContent = L.timeFormatHint;
-  document.getElementById('i_labelDateFormat').textContent = L.labelDateFormat;
-  document.getElementById('i_labelLanguage').textContent = L.labelLanguage;
+  setText('btnGeo', L.btnGeo);
+  setText('btnCalc', L.btnCalc);
 
-  document.getElementById('i_filterSubtitle').textContent = L.filterSubtitle;
-  document.getElementById('i_labelFilterFrom').textContent = L.labelFilterFrom;
-  document.getElementById('i_labelFilterTo').textContent = L.labelFilterTo;
-  document.getElementById('i_labelFilterDuration').textContent =
-    L.labelFilterDuration;
-  document.getElementById('i_labelDowFilter').textContent = L.labelDowFilter;
+  setText('i_labelTimeFormat', L.labelTimeFormat);
+  setText('i_timeFormatHint', L.timeFormatHint);
+  setText('i_labelDateFormat', L.labelDateFormat);
+  setText('i_labelLanguage', L.labelLanguage);
 
-  document.getElementById('i_dowEmpty').textContent = L.dowEmpty;
-  document.getElementById('i_dowFriSat').textContent = L.dowFriSat;
-  document.getElementById('i_dowFriSatSun').textContent = L.dowFriSatSun;
-  document.getElementById('i_dowSatSun').textContent = L.dowSatSun;
+  // Darkness filter section labels
+  setText('i_filterSubtitle', L.filterSubtitle);
+  setText('i_labelFilterFrom', L.labelFilterFrom);
+  setText('i_labelFilterTo', L.labelFilterTo);
+  setText('i_labelFilterDuration', L.labelFilterDuration);
+  setText('i_labelDowFilter', L.labelDowFilter);
 
-  document.getElementById('i_labelDisplayOptions').textContent =
-    L.labelDisplayOptions;
-  document.getElementById('i_filterHideLabel').textContent = L.filterHideLabel;
-  document.getElementById('i_filterHighlightLabel').textContent =
-    L.filterHighlightLabel;
-  document.getElementById('i_filterHint').textContent = L.filterHint;
+  setText('i_dowEmpty', L.dowEmpty);
+  setText('i_dowFriSat', L.dowFriSat);
+  setText('i_dowFriSatSun', L.dowFriSatSun);
+  setText('i_dowSatSun', L.dowSatSun);
 
-  document.getElementById('i_blockDarkTitle').textContent = L.blockDarkTitle;
-  document.getElementById('i_blockSunTitle').textContent = L.blockSunTitle;
-  document.getElementById('i_blockMoonTitle').textContent = L.blockMoonTitle;
-  document.getElementById('i_blockPhaseTitle').textContent = L.blockPhaseTitle;
+  setText('i_labelDisplayOptions', L.labelDisplayOptions);
+  setText('i_filterHideLabel', L.filterHideLabel);
+  setText('i_filterHighlightLabel', L.filterHighlightLabel);
 
-  document.getElementById('i_futureTitle').textContent = L.futureTitle;
-  document.getElementById('i_thNight').textContent = L.thNight;
-  document.getElementById('i_thDarkness').textContent = L.thDarkness;
-  document.getElementById('i_thTotal').textContent = L.thTotal;
-  document.getElementById('i_nightLegend').innerHTML = L.nightLegend;
+  // In your index.html the hint has id="i_minDurationHint"
+  // (older builds used i_filterHint)
+  setText('i_minDurationHint', L.filterHint);
+  setText('i_filterHint', L.filterHint);
 
-  document.getElementById('versionLabel').textContent = L.versionLabel;
+  // Blocks
+  setText('i_blockDarkTitle', L.blockDarkTitle);
+  setText('i_blockSunTitle', L.blockSunTitle);
+  setText('i_blockMoonTitle', L.blockMoonTitle);
+  setText('i_blockPhaseTitle', L.blockPhaseTitle);
+
+  // Table
+  setText('i_futureTitle', L.futureTitle);
+  setText('i_thNight', L.thNight);
+  setText('i_thDarkness', L.thDarkness);
+  setText('i_thTotal', L.thTotal);
+
+  // Tabs (IDs are in index.html)
+  setText('i_tabBasic', L.tabBasic || 'Basic');
+  setText('i_tabDarkness', L.tabDarkness || 'Darkness');
+  setText('i_tabWeather', L.tabWeather || 'Weather');
+
+  // Units (IDs in index.html)
+  setText('i_unitsTitle', L.unitsTitle || 'Units');
+  setText('i_labelWindUnits', L.weatherWindUnitsLabel || L.labelWindUnits || 'Wind units');
+  setText('i_labelTempUnits', L.weatherTempUnitsLabel || L.labelTempUnits || 'Temperature units');
+
+  // Section titles (IDs in index.html)
+  setText('i_darkFilterTitle', L.darknessFilterTitle || L.darkFilterTitle || 'Darkness filter');
+
+  // Weather filter (IDs in index.html)
+  setText('i_weatherFilterTitle', L.weatherFilterTitle || 'Weather filter');
+  setText('i_weatherEnableHint', L.weatherEnabledLabel || L.weatherEnableHint || '');
+  setText('i_weatherMaxCloud', L.weatherMaxCloudLabel || L.weatherMaxCloud || '');
+  setText('i_weatherMaxWind', L.weatherMaxWindLabel || L.weatherMaxWind || '');
+  setText('i_weatherMaxHumidity', L.weatherMaxHumidityLabel || L.weatherMaxHumidity || '');
+  setText('i_weatherMinConsec', L.weatherMinConsecLabel || L.weatherMinConsec || '');
+  setText('i_weatherHint', L.weatherHint || '');
+
+  const legend = document.getElementById('i_nightLegend');
+  if (legend) legend.innerHTML = L.nightLegend;
+
+  setText('versionLabel', L.versionLabel);
 }
 
 function updateFilterHourLabels() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
+  if (!fromSel || !toSel) return;
+
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
 
   const startLabel =
@@ -298,18 +474,13 @@ function updateFilterHourLabels() {
     (settings.lang === 'ru' ? 'Конец астр. ночи' : 'Astronomical night end');
 
   [fromSel, toSel].forEach(sel => {
-    if (!sel) return;
     for (const opt of sel.options) {
       const v = opt.value;
-      if (v === 'astrStart') {
-        opt.textContent = startLabel;
-      } else if (v === 'astrEnd') {
-        opt.textContent = endLabel;
-      } else {
+      if (v === 'astrStart') opt.textContent = startLabel;
+      else if (v === 'astrEnd') opt.textContent = endLabel;
+      else {
         const h = parseInt(v, 10);
-        if (!isNaN(h)) {
-          opt.textContent = labelHour(h);
-        }
+        if (!isNaN(h)) opt.textContent = labelHour(h);
       }
     }
   });
@@ -323,8 +494,8 @@ function getFilterConfig() {
   const hlEl = document.getElementById('filterHighlight');
   const dowSel = document.getElementById('dowFilter');
 
-  const rawFrom = fromSel.value;
-  const rawTo = toSel.value;
+  const rawFrom = fromSel ? fromSel.value : '21';
+  const rawTo = toSel ? toSel.value : '2';
 
   const fromAstrStart = rawFrom === 'astrStart';
   const toAstrEnd = rawTo === 'astrEnd';
@@ -334,25 +505,19 @@ function getFilterConfig() {
   if (isNaN(fromHour)) fromHour = 0;
   if (isNaN(toHour)) toHour = 0;
 
-  let dur = durEl.value ? durEl.value.toString().replace(',', '.') : '0';
+  let dur = durEl && durEl.value ? durEl.value.toString().replace(',', '.') : '0';
   let durNum = parseFloat(dur);
   if (!isFinite(durNum) || durNum < 0) durNum = 0;
 
   const minMinutes = durNum > 0 ? Math.round(durNum * 60) : 0;
 
   let allowedDays = null;
-  switch (dowSel.value) {
-    case 'fri_sat':
-      allowedDays = [5, 6];
-      break;
-    case 'fri_sat_sun':
-      allowedDays = [5, 6, 0];
-      break;
-    case 'sat_sun':
-      allowedDays = [6, 0];
-      break;
-    default:
-      allowedDays = null;
+  const dowVal = dowSel ? dowSel.value : '';
+  switch (dowVal) {
+    case 'fri_sat': allowedDays = [5, 6]; break;
+    case 'fri_sat_sun': allowedDays = [5, 6, 0]; break;
+    case 'sat_sun': allowedDays = [6, 0]; break;
+    default: allowedDays = null;
   }
 
   return {
@@ -361,8 +526,8 @@ function getFilterConfig() {
     fromAstrStart,
     toAstrEnd,
     minMinutes,
-    hideNonMatch: !!hideEl.checked,
-    highlightMatches: !!hlEl.checked,
+    hideNonMatch: !!(hideEl && hideEl.checked),
+    highlightMatches: !!(hlEl && hlEl.checked),
     allowedDays
   };
 }
@@ -396,24 +561,16 @@ function getSunTimesForNight(baseDate, latDeg, lonDeg) {
   const twA1 = sun1.twilightA || {};
 
   let sunset = null;
-  if (typeof day0.set === 'number') {
-    sunset = new Date(mid0.getTime() + day0.set * 3600 * 1000);
-  }
+  if (typeof day0.set === 'number') sunset = new Date(mid0.getTime() + day0.set * 3600 * 1000);
 
   let sunrise = null;
-  if (typeof day1.rise === 'number') {
-    sunrise = new Date(mid1.getTime() + day1.rise * 3600 * 1000);
-  }
+  if (typeof day1.rise === 'number') sunrise = new Date(mid1.getTime() + day1.rise * 3600 * 1000);
 
   let astrStart = null;
-  if (typeof twA0.set === 'number') {
-    astrStart = new Date(mid0.getTime() + twA0.set * 3600 * 1000);
-  }
+  if (typeof twA0.set === 'number') astrStart = new Date(mid0.getTime() + twA0.set * 3600 * 1000);
 
   let astrEnd = null;
-  if (typeof twA1.rise === 'number') {
-    astrEnd = new Date(mid1.getTime() + twA1.rise * 3600 * 1000);
-  }
+  if (typeof twA1.rise === 'number') astrEnd = new Date(mid1.getTime() + twA1.rise * 3600 * 1000);
 
   return { mid0, mid1, sunset, sunrise, astrStart, astrEnd };
 }
@@ -453,8 +610,7 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
     const lst = gmst + lonRad;
     const H = lst - ra;
 
-    const sinAlt =
-      sinLat * Math.sin(dec) + cosLat * Math.cos(dec) * Math.cos(H);
+    const sinAlt = sinLat * Math.sin(dec) + cosLat * Math.cos(dec) * Math.cos(H);
     const alt = Math.asin(sinAlt);
 
     const nowDark = alt < 0;
@@ -469,14 +625,10 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
     }
   }
 
-  if (inDark && runStart) {
-    intervals.push({ start: runStart, end: astrEnd });
-  }
+  if (inDark && runStart) intervals.push({ start: runStart, end: astrEnd });
 
   let totalMinutes = 0;
-  for (const d of intervals) {
-    totalMinutes += diffMinutes(d.start, d.end);
-  }
+  for (const d of intervals) totalMinutes += diffMinutes(d.start, d.end);
 
   return { sun, darknessIntervals: intervals, totalMinutes };
 }
@@ -484,11 +636,7 @@ function getFullDarknessForNight(baseDate, latDeg, lonDeg) {
 function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   const sun = getSunTimesForNight(baseDate, latDeg, lonDeg);
   const { mid0, mid1, sunset, sunrise } = sun;
-  const result = {
-    rises: [],
-    sets: [],
-    flags: { alwaysAbove: false, alwaysBelow: false }
-  };
+  const result = { rises: [], sets: [], flags: { alwaysAbove: false, alwaysBelow: false } };
 
   if (!sunset || !sunrise) return result;
 
@@ -507,15 +655,11 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
     const dayStart = mid.getTime();
     if (typeof d.rise === 'number') {
       const t = dayStart + d.rise * 3600 * 1000;
-      if (t >= windowStart && t <= windowEnd) {
-        result.rises.push(new Date(t));
-      }
+      if (t >= windowStart && t <= windowEnd) result.rises.push(new Date(t));
     }
     if (typeof d.set === 'number') {
       const t = dayStart + d.set * 3600 * 1000;
-      if (t >= windowStart && t <= windowEnd) {
-        result.sets.push(new Date(t));
-      }
+      if (t >= windowStart && t <= windowEnd) result.sets.push(new Date(t));
     }
   }
 
@@ -528,9 +672,6 @@ function getMoonNightEvents(baseDate, latDeg, lonDeg) {
   return result;
 }
 
-
-
-// Overlap between full darkness and user time window
 function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
   if (!filter || filter.minMinutes <= 0) return 0;
   if (!darknessIntervals || darknessIntervals.length === 0) return 0;
@@ -554,18 +695,13 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
     windowEndMs = baseMs + filter.toHour * 3600000;
   }
 
-  // If end is not after start, move end to next day (handle crossing midnight)
-  if (windowEndMs <= windowStartMs) {
-    windowEndMs += 24 * 3600000;
-  }
+  if (windowEndMs <= windowStartMs) windowEndMs += 24 * 3600000;
 
   let total = 0;
   for (const interval of darknessIntervals) {
     const s = Math.max(interval.start.getTime(), windowStartMs);
     const e = Math.min(interval.end.getTime(), windowEndMs);
-    if (e > s) {
-      total += Math.round((e - s) / 60000);
-    }
+    if (e > s) total += Math.round((e - s) / 60000);
   }
   return total;
 }
@@ -584,14 +720,15 @@ function updateSelectedNight(baseDate, lat, lon) {
   const darkNoteEl = document.getElementById('darknessNote');
   const filterInfoEl = document.getElementById('filterInfo');
 
-  titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(
-    baseDate
-  )} → ${fmtDate(nightEnd)}`;
+  if (titleEl) {
+    titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(baseDate)} → ${fmtDate(nightEnd)}`;
+  }
 
   const sun = getSunTimesForNight(baseDate, lat, lon);
-  sunInfoEl.innerHTML = '';
+  if (sunInfoEl) sunInfoEl.innerHTML = '';
 
   function addSun(labelKey, d) {
+    if (!sunInfoEl) return;
     const li = document.createElement('li');
     let label;
     if (labelKey === 'sunset') label = L.sunSunset;
@@ -600,9 +737,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     else if (labelKey === 'astrEnd') label = L.sunAstrEnd;
     else label = labelKey;
 
-    li.textContent = d
-      ? `${label} (${fmtDateShort(d)}) — ${fmtTime(d)}`
-      : `${label}: —`;
+    li.textContent = d ? `${label} (${fmtDateShort(d)}) — ${fmtTime(d)}` : `${label}: —`;
     sunInfoEl.appendChild(li);
   }
 
@@ -612,169 +747,139 @@ function updateSelectedNight(baseDate, lat, lon) {
   addSun('astrEnd', sun.astrEnd);
 
   const moonNight = getMoonNightEvents(baseDate, lat, lon);
-  moonInfoEl.innerHTML = '';
-  if (moonNight.rises.length === 0 && moonNight.sets.length === 0) {
-    const li = document.createElement('li');
-    if (moonNight.flags.alwaysBelow) {
-      li.textContent = L.moonBelowAllNight;
-    } else if (moonNight.flags.alwaysAbove) {
-      li.textContent = L.moonAboveAllNight;
+  if (moonInfoEl) moonInfoEl.innerHTML = '';
+
+  if (moonInfoEl) {
+    if (moonNight.rises.length === 0 && moonNight.sets.length === 0) {
+      const li = document.createElement('li');
+      if (moonNight.flags.alwaysBelow) li.textContent = L.moonBelowAllNight;
+      else if (moonNight.flags.alwaysAbove) li.textContent = L.moonAboveAllNight;
+      else li.textContent = L.moonNoEvents;
+      moonInfoEl.appendChild(li);
     } else {
-      li.textContent = L.moonNoEvents;
-    }
-    moonInfoEl.appendChild(li);
-  } else {
-    if (moonNight.rises.length > 0) {
-      const li = document.createElement('li');
-      const parts = moonNight.rises.map(
-        d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`
-      );
-      li.textContent = L.moonRisePrefix + parts.join(', ');
-      moonInfoEl.appendChild(li);
-    }
-    if (moonNight.sets.length > 0) {
-      const li = document.createElement('li');
-      const parts = moonNight.sets.map(
-        d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`
-      );
-      li.textContent = L.moonSetPrefix + parts.join(', ');
-      moonInfoEl.appendChild(li);
+      if (moonNight.rises.length > 0) {
+        const li = document.createElement('li');
+        const parts = moonNight.rises.map(d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`);
+        li.textContent = L.moonRisePrefix + parts.join(', ');
+        moonInfoEl.appendChild(li);
+      }
+      if (moonNight.sets.length > 0) {
+        const li = document.createElement('li');
+        const parts = moonNight.sets.map(d => `(${fmtDateShort(d)}) — ${fmtTime(d)}`);
+        li.textContent = L.moonSetPrefix + parts.join(', ');
+        moonInfoEl.appendChild(li);
+      }
     }
   }
 
-  // Moon phase and age (for selected date, at current local time-of-day)
-  if (window.SunCalc && SunCalc.getMoonIllumination) {
-    const now = new Date();
-    const obsTime = new Date(
-      baseDate.getFullYear(),
-      baseDate.getMonth(),
-      baseDate.getDate(),
-      now.getHours(),
-      now.getMinutes(),
-      now.getSeconds(),
-      now.getMilliseconds()
-    );
+  if (phaseEl) {
+    if (window.SunCalc && SunCalc.getMoonIllumination) {
+      const now = new Date();
+      const obsTime = new Date(
+        baseDate.getFullYear(),
+        baseDate.getMonth(),
+        baseDate.getDate(),
+        now.getHours(),
+        now.getMinutes(),
+        now.getSeconds(),
+        now.getMilliseconds()
+      );
 
-  // Draw Moon phase using planet_phase.js
-const illum = SunCalc.getMoonIllumination(obsTime);
-const frac = Math.round(illum.fraction * 100);
-const p = illum.phase;
-const synodicMonth = 29.530588853;
-const ageDays = illum.phase * synodicMonth;
+      const illum = SunCalc.getMoonIllumination(obsTime);
+      const frac = Math.round(illum.fraction * 100);
+      const p = illum.phase;
+      const synodicMonth = 29.530588853;
+      const ageDays = illum.phase * synodicMonth;
 
-// Draw pretty disc using planet_phase.js
-const discContainer = document.getElementById('moonPhaseDisc');
-if (discContainer && window.drawPlanetPhase) {
+      const discContainer = document.getElementById('moonPhaseDisc');
+      if (discContainer && window.drawPlanetPhase) {
+        discContainer.innerHTML = '';
+        const phaseForLib = illum.fraction;
+        const isWaxing = illum.phase < 0.5;
 
-  // Remove previously rendered phase (otherwise the DIVs stack up)
-  discContainer.innerHTML = '';
+        drawPlanetPhase(discContainer, phaseForLib, isWaxing, {
+          diameter: 55,
+          lightColour: '#fef9c3',
+          shadowColour: '#050814',
+          earthshine: 0.15,
+          blur: 3
+        });
+      }
 
-  // Illumination fraction from SunCalc (0 = new, 1 = full)
-  const phaseForLib = illum.fraction;
-
-  // Determine waxing / waning:
-  // SunCalc: phase < 0.5 → waxing, phase > 0.5 → waning
-  const isWaxing = illum.phase < 0.5;
-
-  // Call the external library that draws the Moon disc
-  drawPlanetPhase(discContainer, phaseForLib, isWaxing, {
-    diameter: 55,                // Should match the CSS size
-    lightColour: '#fef9c3',      // Bright illuminated area
-    shadowColour: '#050814',     // Dark shadow area
-    earthshine: 0.15,            // Slight glow on the dark side
-    blur: 3                      // Smooth terminator edge
-  });
-}
-    
-    let name;
-    if (settings.lang === 'ru') {
-      if (p < 0.03 || p > 0.97) name = 'Новолуние';
-      else if (p < 0.22) name = 'Растущий серп';
-      else if (p < 0.28) name = 'Первая четверть';
-      else if (p < 0.47) name = 'Растущая Луна';
-      else if (p < 0.53) name = 'Полнолуние';
-      else if (p < 0.72) name = 'Убывающая Луна';
-      else if (p < 0.78) name = 'Последняя четверть';
-      else name = 'Старый серп';
-      phaseEl.innerHTML =
-        `${name}, освещено ≈ ${frac}%<br>` +
-        `Возраст Луны ≈ ${ageDays.toFixed(1)} дн.`;
+      let name;
+      if (settings.lang === 'ru') {
+        if (p < 0.03 || p > 0.97) name = 'Новолуние';
+        else if (p < 0.22) name = 'Растущий серп';
+        else if (p < 0.28) name = 'Первая четверть';
+        else if (p < 0.47) name = 'Растущая Луна';
+        else if (p < 0.53) name = 'Полнолуние';
+        else if (p < 0.72) name = 'Убывающая Луна';
+        else if (p < 0.78) name = 'Последняя четверть';
+        else name = 'Старый серп';
+        phaseEl.innerHTML = `${name}, освещено ≈ ${frac}%<br>Возраст Луны ≈ ${ageDays.toFixed(1)} дн.`;
+      } else {
+        if (p < 0.03 || p > 0.97) name = 'New Moon';
+        else if (p < 0.22) name = 'Waxing Crescent';
+        else if (p < 0.28) name = 'First Quarter';
+        else if (p < 0.47) name = 'Waxing Gibbous';
+        else if (p < 0.53) name = 'Full Moon';
+        else if (p < 0.72) name = 'Waning Gibbous';
+        else if (p < 0.78) name = 'Last Quarter';
+        else name = 'Old Crescent';
+        phaseEl.innerHTML = `${name}, illuminated ≈ ${frac}%<br>Moon age ≈ ${ageDays.toFixed(1)} days`;
+      }
     } else {
-      if (p < 0.03 || p > 0.97) name = 'New Moon';
-      else if (p < 0.22) name = 'Waxing Crescent';
-      else if (p < 0.28) name = 'First Quarter';
-      else if (p < 0.47) name = 'Waxing Gibbous';
-      else if (p < 0.53) name = 'Full Moon';
-      else if (p < 0.72) name = 'Waning Gibbous';
-      else if (p < 0.78) name = 'Last Quarter';
-      else name = 'Old Crescent';
-      phaseEl.innerHTML =
-        `${name}, illuminated ≈ ${frac}%<br>` +
-        `Moon age ≈ ${ageDays.toFixed(1)} days`;
+      phaseEl.textContent = (UI_STRINGS[settings.lang] || UI_STRINGS.en).phaseUnavailable;
     }
-  } else {
-    phaseEl.textContent = L.phaseUnavailable;
   }
 
   const dark = getFullDarknessForNight(baseDate, lat, lon);
   const filter = getFilterConfig();
 
-  if (!dark.sun.astrStart || !dark.sun.astrEnd) {
-    darkEl.innerHTML = L.noAstrNight;
-    darkNoteEl.textContent = '';
-  } else if (dark.darknessIntervals.length === 0) {
-    darkEl.innerHTML = L.noFullDark;
-    darkNoteEl.textContent = '';
-  } else {
-    const intervalsStr = formatIntervals(dark.darknessIntervals);
-    const totalStr = fmtDuration(dark.totalMinutes);
+  if (darkEl && darkNoteEl) {
+    if (!dark.sun.astrStart || !dark.sun.astrEnd) {
+      darkEl.innerHTML = L.noAstrNight;
+      darkNoteEl.textContent = '';
+    } else if (dark.darknessIntervals.length === 0) {
+      darkEl.innerHTML = L.noFullDark;
+      darkNoteEl.textContent = '';
+    } else {
+      const intervalsStr = formatIntervals(dark.darknessIntervals);
+      const totalStr = fmtDuration(dark.totalMinutes);
+      const totalLabel = settings.lang === 'ru' ? 'всего' : 'total';
 
-    const totalLabel = settings.lang === 'ru' ? 'всего' : 'total';
+      darkEl.innerHTML =
+        `<span class="darkness-interval ok">${intervalsStr}</span> ` +
+        `(<span class="total">${totalLabel} ${totalStr}</span>)`;
 
-    darkEl.innerHTML =
-      `<span class="darkness-interval ok">${intervalsStr}</span> ` +
-      `(<span class="total">${totalLabel} ${totalStr}</span>)`;
-
-    darkNoteEl.textContent =
-      dark.darknessIntervals.length > 1 ? L.darkMulti : L.darkSingle;
+      darkNoteEl.textContent = dark.darknessIntervals.length > 1 ? L.darkMulti : L.darkSingle;
+    }
   }
 
-  // Filter explanation + next suitable night
+  if (!filterInfoEl) return;
+
   filterInfoEl.textContent = '';
   const hasTimeFilter = filter.minMinutes > 0;
   const hasDayFilter = !!(filter.allowedDays && filter.allowedDays.length);
   const anyFilterActive = hasTimeFilter || hasDayFilter;
-
   if (!anyFilterActive) return;
 
   let text = '';
 
   const dowThis = baseDate.getDay();
-  const dayMatchThis =
-    !filter.allowedDays || filter.allowedDays.includes(dowThis);
+  const dayMatchThis = !filter.allowedDays || filter.allowedDays.includes(dowThis);
   let matchMinutes = 0;
   let timeOkThis = true;
 
   if (hasTimeFilter && dark.sun.astrStart && dark.sun.astrEnd) {
-    matchMinutes = getFilterOverlapMinutes(
-      baseDate,
-      dark.darknessIntervals,
-      dark.sun,
-      filter
-    );
+    matchMinutes = getFilterOverlapMinutes(baseDate, dark.darknessIntervals, dark.sun, filter);
     timeOkThis = matchMinutes >= filter.minMinutes;
   }
 
-  if (
-    !dark.sun.astrStart ||
-    !dark.sun.astrEnd ||
-    dark.darknessIntervals.length === 0
-  ) {
+  if (!dark.sun.astrStart || !dark.sun.astrEnd || dark.darknessIntervals.length === 0) {
     text += L.filterNightNoDark;
   } else {
-    if (hasDayFilter) {
-      text += dayMatchThis ? L.filterDayIn : L.filterDayOut;
-    }
+    if (hasDayFilter) text += dayMatchThis ? L.filterDayIn : L.filterDayOut;
     if (hasTimeFilter) {
       if (timeOkThis) {
         text +=
@@ -798,25 +903,15 @@ if (discContainer && window.drawPlanetPhase) {
   for (let i = 1; i <= 30; i++) {
     const d = shiftDays(baseDate, i);
     const darkNext = getFullDarknessForNight(d, lat, lon);
-    if (
-      !darkNext.sun.astrStart ||
-      !darkNext.sun.astrEnd ||
-      darkNext.darknessIntervals.length === 0
-    ) {
-      continue;
-    }
+    if (!darkNext.sun.astrStart || !darkNext.sun.astrEnd || darkNext.darknessIntervals.length === 0) continue;
+
     const dow = d.getDay();
     const dayOK = !filter.allowedDays || filter.allowedDays.includes(dow);
 
     let timeOK = true;
     let mm = 0;
     if (hasTimeFilter) {
-      mm = getFilterOverlapMinutes(
-        d,
-        darkNext.darknessIntervals,
-        darkNext.sun,
-        filter
-      );
+      mm = getFilterOverlapMinutes(d, darkNext.darknessIntervals, darkNext.sun, filter);
       timeOK = mm >= filter.minMinutes;
     }
 
@@ -832,22 +927,14 @@ if (discContainer && window.drawPlanetPhase) {
       if (found.daysAhead === 1) when = L.nextNightTomorrow;
       else if (found.daysAhead === 2) when = L.nextNightAfter;
       else when = L.nextNightInDays.replace('{D}', found.daysAhead);
-      const mmText = hasTimeFilter
-        ? `, темнота ${fmtDuration(found.minutes)}`
-        : '';
-      text += `${L.nextNightPrefix}${when} (${fmtDate(
-        found.date
-      )}${mmText}).`;
+      const mmText = hasTimeFilter ? `, темнота ${fmtDuration(found.minutes)}` : '';
+      text += `${L.nextNightPrefix}${when} (${fmtDate(found.date)}${mmText}).`;
     } else {
       if (found.daysAhead === 1) when = L.nextNightTomorrow;
       else if (found.daysAhead === 2) when = L.nextNightAfter;
       else when = L.nextNightInDays.replace('{D}', found.daysAhead);
-      const mmText = hasTimeFilter
-        ? `, darkness ${fmtDuration(found.minutes)}`
-        : '';
-      text += `${L.nextNightPrefix}${when} (${fmtDate(
-        found.date
-      )}${mmText}).`;
+      const mmText = hasTimeFilter ? `, darkness ${fmtDuration(found.minutes)}` : '';
+      text += `${L.nextNightPrefix}${when} (${fmtDate(found.date)}${mmText}).`;
     }
   } else {
     text += L.nextNone;
@@ -860,6 +947,8 @@ if (discContainer && window.drawPlanetPhase) {
 
 function updateFutureTable(startDate, lat, lon) {
   const tbody = document.getElementById('futureTableBody');
+  if (!tbody) return;
+
   const filter = getFilterConfig();
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
 
@@ -874,11 +963,8 @@ function updateFutureTable(startDate, lat, lon) {
     const data = getFullDarknessForNight(base, lat, lon);
 
     let darkText = '—';
-    if (data.darknessIntervals.length > 0) {
-      darkText = formatIntervals(data.darknessIntervals);
-    }
-    const totalText =
-      data.totalMinutes > 0 ? fmtDuration(data.totalMinutes) : '—';
+    if (data.darknessIntervals.length > 0) darkText = formatIntervals(data.darknessIntervals);
+    const totalText = data.totalMinutes > 0 ? fmtDuration(data.totalMinutes) : '—';
 
     const dow = base.getDay();
     let weekendLabel = '';
@@ -886,61 +972,151 @@ function updateFutureTable(startDate, lat, lon) {
     else if (dow === 0) weekendLabel = L.weekendSun;
 
     const tr = document.createElement('tr');
+    if (dow === 0 || dow === 6) tr.classList.add('weekend-row');
+
+    const dayMatch = !filter.allowedDays || filter.allowedDays.includes(dow);
+    let timeMatch = true;
+    if (hasTimeFilter) {
+      const mm = getFilterOverlapMinutes(base, data.darknessIntervals, data.sun, filter);
+      timeMatch = mm >= filter.minMinutes;
+    }
+    const matchedForFilter = dayMatch && timeMatch;
+
+    let wEval = null;
+    if (weatherIsEnabled()) wEval = weatherMatchForNight(base, data, filter);
+    const matchedForWeather = (wEval && wEval.ok) ? true : false;
+
+    const weatherDotHtml = matchedForWeather
+      ? '<span class="good-night-dot" aria-hidden="true"></span>'
+      : '';
+
     tr.innerHTML = `
       <td class="night-col">
-        ${fmtDate(base)}
-        ${
-          weekendLabel
-            ? `<span class="weekend-label">${weekendLabel}</span>`
-            : ''
-        }
-        <span class="night-date">${L.nightPrefix}${fmtDateShort(
-          base
-        )} → ${fmtDateShort(shiftDays(base, 1))}</span>
+        ${weatherDotHtml}${fmtDate(base)}
+        ${weekendLabel ? `<span class="weekend-label">${weekendLabel}</span>` : ''}
+        <span class="night-date">${L.nightPrefix}${fmtDateShort(base)} → ${fmtDateShort(shiftDays(base, 1))}</span>
       </td>
       <td>${darkText}</td>
       <td>${totalText}</td>
     `;
 
-    if (dow === 0 || dow === 6) {
-      tr.classList.add('weekend-row');
-    }
-
-    const cells = tr.querySelectorAll('td');
-    cells.forEach(td => td.classList.remove('filter-match-cell'));
-
-    const dayMatch =
-      !filter.allowedDays || filter.allowedDays.includes(dow);
-    let timeMatch = true;
-
-    if (hasTimeFilter) {
-      const mm = getFilterOverlapMinutes(
-        base,
-        data.darknessIntervals,
-        data.sun,
-        filter
-      );
-      timeMatch = mm >= filter.minMinutes;
-    }
-
-    const matched = dayMatch && timeMatch;
-
     tr.style.display = '';
     if (anyFilterActive) {
-      if (filter.hideNonMatch && !matched) {
-        tr.style.display = 'none';
-      }
-      if (
-        filter.highlightMatches &&
-        matched &&
-        tr.style.display !== 'none'
-      ) {
+      if (filter.hideNonMatch && !matchedForFilter) tr.style.display = 'none';
+      if (filter.highlightMatches && matchedForFilter && tr.style.display !== 'none') {
+        const cells = tr.querySelectorAll('td');
         if (cells[1]) cells[1].classList.add('filter-match-cell');
         if (cells[2]) cells[2].classList.add('filter-match-cell');
       }
     }
 
     tbody.appendChild(tr);
+
+    // Click to toggle hourly details for this night
+    tr.style.cursor = 'pointer';
+    tr.addEventListener('click', () => {
+      const next = tr.nextElementSibling;
+      if (next && next.classList.contains('weather-details-row')) {
+        next.remove();
+        return;
+      }
+
+      if (!window.WeatherService || !WeatherService.isEnabled || !WeatherService.isEnabled()) return;
+      if (!WeatherService.isReady || !WeatherService.isReady()) return;
+
+      const details = document.createElement('tr');
+      details.className = 'weather-details-row';
+
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.style.background = '#040813';
+      td.style.color = '#cfd8dc';
+      td.style.padding = '10px 12px';
+
+      const allHours = (typeof WeatherService.getAllAstrNightHours === 'function')
+        ? WeatherService.getAllAstrNightHours(data)
+        : [];
+
+      const titleDetails =
+        L.weatherDetailsTitle ||
+        (settings.lang === 'ru'
+          ? 'Погода (часы астрономической ночи)'
+          : 'Weather (astronomical night hours)');
+
+      const noDataText =
+        L.weatherNoData ||
+        (settings.lang === 'ru'
+          ? 'Нет данных прогноза для этой ночи (вне диапазона прогноза).'
+          : 'No forecast data for this night (outside forecast range).');
+
+      const colTime = L.colTime || (settings.lang === 'ru' ? 'Время' : 'Time');
+      const colCloud = L.colCloud || (settings.lang === 'ru' ? 'Облачность %' : 'Cloud %');
+      const colWind = L.colWind || (settings.lang === 'ru' ? 'Ветер' : 'Wind');
+      const colHum = L.colHumidity || (settings.lang === 'ru' ? 'Влажность %' : 'Humidity %');
+      const colAOD = L.colAOD || 'AOD';
+      const colSeeing = L.colSeeing || (settings.lang === 'ru' ? 'Синг' : 'Seeing');
+
+      if (!allHours.length) {
+        td.innerHTML =
+          `<div class="weather-title">${titleDetails}</div>` +
+          `<div>${noDataText}</div>`;
+      } else {
+        const unitKey = getWindUnitKey();
+
+        const rows = allHours.map(h => {
+          const aodText = (typeof h.aod === 'number') ? h.aod.toFixed(3) : '—';
+const seeLabelKey = h.seeingLabelKey || '';
+const seeLabel =
+  (seeLabelKey && L.seeingLabels && L.seeingLabels[seeLabelKey])
+    ? L.seeingLabels[seeLabelKey]
+    : (h.seeingLabel || ''); // fallback если вдруг старый weather.js
+
+const seeText = (typeof h.seeingScore === 'number')
+  ? `${h.seeingScore}${seeLabel ? ` (${seeLabel})` : ''}`
+  : '—';
+
+          const windVal = (typeof h.windMs === 'number') ? windMsToUnit(h.windMs, unitKey) : null;
+          const windText = (typeof windVal === 'number') ? windVal.toFixed(1) : '—';
+
+          const cloudText = (typeof h.cloud === 'number') ? h.cloud : '—';
+          const humText = (typeof h.hum === 'number') ? h.hum : '—';
+
+          const tStr = fmtTime(h.time);
+          const dStr = fmtDateShort(h.time);
+
+          return `<tr>
+            <td class="sticky-col">${tStr} <span class="weather-date">(${dStr})</span></td>
+            <td>${cloudText}</td>
+            <td>${windText}</td>
+            <td>${humText}</td>
+            <td>${aodText}</td>
+            <td>${seeText}</td>
+          </tr>`;
+        }).join('');
+
+        td.innerHTML = `
+          <div class="weather-title">${titleDetails}</div>
+          <div class="weather-scroll">
+            <table class="weather-table">
+              <thead>
+                <tr>
+                  <th class="sticky-col">${colTime}</th>
+                  <th>${colCloud}</th>
+                  <th>${colWind} ${windUnitLabelText(unitKey)}</th>
+                  <th>${colHum}</th>
+                  <th>${colAOD}</th>
+                  <th>${colSeeing}</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      }
+
+      details.appendChild(td);
+      tr.parentNode.insertBefore(details, tr.nextSibling);
+    });
   }
 }
 
@@ -948,12 +1124,14 @@ function updateFutureTable(startDate, lat, lon) {
 
 function recalcAll() {
   updateSettingsFromUI();
+  updateWindUnitLabelUI();
   applyLanguage();
   updateFilterHourLabels();
 
-  const lat = parseFloat(document.getElementById('lat').value) || 0;
-  const lon = parseFloat(document.getElementById('lon').value) || 0;
-  const dateStr = document.getElementById('startDate').value;
+  const lat = parseFloat((document.getElementById('lat') || {}).value) || 0;
+  const lon = parseFloat((document.getElementById('lon') || {}).value) || 0;
+
+  const dateStr = (document.getElementById('startDate') || {}).value;
   let baseDate;
   if (dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -961,10 +1139,32 @@ function recalcAll() {
   } else {
     baseDate = atLocalMidnight(new Date());
   }
+
+  // Weather: load forecast when enabled (non-blocking)
+  if (window.WeatherService && typeof WeatherService.readConfigFromUI === 'function') {
+    WeatherService.readConfigFromUI();
+
+    // Keep wind threshold in WeatherService in m/s if cfg exists
+    const windUnits = getWindUnitKey();
+    const wMax = document.getElementById('weatherMaxWind');
+    if (wMax && WeatherService.cfg) {
+      const ms = windUnitToMs(wMax.value, windUnits);
+      if (typeof ms === 'number' && isFinite(ms)) WeatherService.cfg.maxWind = ms;
+    }
+
+    if (WeatherService.isEnabled && WeatherService.isEnabled()) {
+      WeatherService.load(lat, lon)
+        .then(() => {
+          updateSelectedNight(baseDate, lat, lon);
+          updateFutureTable(baseDate, lat, lon);
+        })
+        .catch(() => {});
+    }
+  }
+
   updateSelectedNight(baseDate, lat, lon);
   updateFutureTable(baseDate, lat, lon);
 
-  // Persist settings after each recalculation
   saveSettingsToStorage();
 }
 
@@ -973,8 +1173,11 @@ function recalcAll() {
 function initFilterTimeSelects() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
+  if (!fromSel || !toSel) return;
 
-  // numeric hours
+  fromSel.innerHTML = '';
+  toSel.innerHTML = '';
+
   for (let h = 0; h < 24; h++) {
     const opt1 = document.createElement('option');
     opt1.value = String(h);
@@ -984,7 +1187,6 @@ function initFilterTimeSelects() {
     toSel.appendChild(opt2);
   }
 
-  // special values
   const optStart = document.createElement('option');
   optStart.value = 'astrStart';
   fromSel.appendChild(optStart);
@@ -993,21 +1195,20 @@ function initFilterTimeSelects() {
   optEnd.value = 'astrEnd';
   toSel.appendChild(optEnd);
 
-  // defaults
   fromSel.value = '21';
   toSel.value = '2';
 }
 
 function initStartDate() {
+  const el = document.getElementById('startDate');
+  if (!el) return;
   const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = pad2(today.getMonth() + 1);
-  const dd = pad2(today.getDate());
-  document.getElementById('startDate').value = `${yyyy}-${mm}-${dd}`;
+  el.value = `${today.getFullYear()}-${pad2(today.getMonth() + 1)}-${pad2(today.getDate())}`;
 }
 
 function initSettingsAccordion() {
   const card = document.getElementById('settingsCard');
+  if (!card) return;
   const header = card.querySelector('.settings-header');
   const icon = document.getElementById('menuIcon');
 
@@ -1021,50 +1222,100 @@ function initSettingsAccordion() {
     }
   }
 
-  header.addEventListener('click', toggle);
-  icon.addEventListener('click', e => {
-    e.stopPropagation();
-    toggle();
-  });
+  if (header) header.addEventListener('click', toggle);
+  if (icon) {
+    icon.addEventListener('click', e => {
+      e.stopPropagation();
+      toggle();
+    });
+  }
 }
 
 function initEvents() {
-  document.getElementById('btnCalc').addEventListener('click', recalcAll);
+  const btnCalc = document.getElementById('btnCalc');
+  const btnGeo = document.getElementById('btnGeo');
 
-  document.getElementById('btnGeo').addEventListener('click', () => {
-    const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
-    if (!navigator.geolocation) {
-      alert(L.geoNotSupported);
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      pos => {
-        document.getElementById('lat').value =
-          pos.coords.latitude.toFixed(4);
-        document.getElementById('lon').value =
-          pos.coords.longitude.toFixed(4);
-        recalcAll();
-      },
-      () => {
-        alert(L.geoFailed);
+  if (btnCalc) btnCalc.addEventListener('click', recalcAll);
+
+  if (btnGeo) {
+    btnGeo.addEventListener('click', () => {
+      const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
+      if (!navigator.geolocation) {
+        alert(L.geoNotSupported);
+        return;
       }
-    );
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const latEl = document.getElementById('lat');
+          const lonEl = document.getElementById('lon');
+          if (latEl) latEl.value = pos.coords.latitude.toFixed(4);
+          if (lonEl) lonEl.value = pos.coords.longitude.toFixed(4);
+          recalcAll();
+        },
+        () => alert(L.geoFailed)
+      );
+    });
+  }
+
+  const bind = (id, ev) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener(ev, recalcAll);
+  };
+
+  bind('time24', 'change');
+  bind('dateFormat', 'change');
+  bind('langSelect', 'change');
+  bind('filterFromHour', 'change');
+  bind('filterToHour', 'change');
+  bind('filterDuration', 'input');
+  bind('filterHide', 'change');
+  bind('filterHighlight', 'change');
+  bind('dowFilter', 'change');
+  bind('lat', 'change');
+  bind('lon', 'change');
+  bind('startDate', 'change');
+
+  // Weather UI
+  const weatherIds = [
+    'weatherEnabled',
+    'weatherMaxCloud',
+    'weatherMaxWind',
+    'weatherMaxHumidity',
+    'weatherMinConsec',
+    'weatherWindUnits',
+    'weatherTempUnits'
+  ];
+  weatherIds.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener(id === 'weatherEnabled' ? 'change' : 'input', recalcAll);
   });
 
-  // Whenever user changes UI, recalc and save settings
-  document.getElementById('time24').addEventListener('change', recalcAll);
-  document.getElementById('dateFormat').addEventListener('change', recalcAll);
-  document.getElementById('langSelect').addEventListener('change', recalcAll);
-  document.getElementById('filterFromHour').addEventListener('change', recalcAll);
-  document.getElementById('filterToHour').addEventListener('change', recalcAll);
-  document.getElementById('filterDuration').addEventListener('input', recalcAll);
-  document.getElementById('filterHide').addEventListener('change', recalcAll);
-  document.getElementById('filterHighlight').addEventListener('change', recalcAll);
-  document.getElementById('dowFilter').addEventListener('change', recalcAll);
+  // Wind units conversion: keep same physical threshold
+  const windUnitsSel = document.getElementById('weatherWindUnits');
+  const windMaxInput = document.getElementById('weatherMaxWind');
 
-  document.getElementById('lat').addEventListener('change', recalcAll);
-  document.getElementById('lon').addEventListener('change', recalcAll);
-  document.getElementById('startDate').addEventListener('change', recalcAll);
+  if (windUnitsSel && windMaxInput) {
+    windUnitsSel.dataset.prev = windUnitsSel.value || 'ms';
+
+    windUnitsSel.addEventListener('change', (e) => {
+      e.stopPropagation();
+
+      const prev = windUnitsSel.dataset.prev || 'ms';
+      const next = windUnitsSel.value || 'ms';
+
+      const ms = windUnitToMs(windMaxInput.value, prev);
+      if (typeof ms === 'number') {
+        const nextVal = windMsToUnit(ms, next);
+        if (typeof nextVal === 'number') windMaxInput.value = String(Math.round(nextVal * 10) / 10);
+      }
+
+      windUnitsSel.dataset.prev = next;
+      updateWindUnitLabelUI();
+      recalcAll();
+    });
+  }
 }
 
 // ---------- PWA: service worker ----------
@@ -1073,9 +1324,7 @@ function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
       .register('service-worker.js')
-      .catch(err => {
-        console.warn('Service worker registration failed:', err);
-      });
+      .catch(err => console.warn('Service worker registration failed:', err));
   }
 }
 
@@ -1083,9 +1332,11 @@ function registerServiceWorker() {
 window.addEventListener('DOMContentLoaded', () => {
   initStartDate();
   initFilterTimeSelects();
-  loadSettingsFromStorage(); // apply saved values to UI + settings
+  loadSettingsFromStorage();
+  updateWindUnitLabelUI();
   applyLanguage();
   initSettingsAccordion();
+  initTabs();      // <-- tabs ON
   initEvents();
   recalcAll();
   registerServiceWorker();

@@ -26,11 +26,12 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
   background: var(--bg);
   color: var(--text-main);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Segoe UI", sans-serif;
+  overflow-x: hidden;
 }
 
 /* Layout */
@@ -39,11 +40,14 @@ body {
   justify-content: center;
 }
 
+/* Main container */
 .layout {
   width: 100%;
   max-width: 980px;
-  padding: calc(16px + env(safe-area-inset-top, 0px)) 10px
-    calc(24px + env(safe-area-inset-bottom, 0px));
+  padding:
+    calc(16px + env(safe-area-inset-top, 0px))
+    10px
+    calc(30px + env(safe-area-inset-bottom, 0px));
 }
 
 /* Cards */
@@ -139,7 +143,7 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   margin-bottom: 8px;
-  align-items: flex-end; /* align fields nicely in one row */
+  align-items: flex-end;
 }
 
 .field {
@@ -167,7 +171,6 @@ body {
   flex: 1 1 150px;
   min-width: 140px;
 }
-/* --- END --- */
 
 /* Inputs / selects */
 input[type="number"],
@@ -203,7 +206,7 @@ select:focus {
   accent-color: var(--accent);
 }
 
-/* Buttons (My location / Recalculate) */
+/* Buttons */
 button {
   border-radius: 999px;
   border: none;
@@ -215,13 +218,10 @@ button {
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.55);
   white-space: nowrap;
-  transition: transform 0.05s ease, box-shadow 0.05s ease,
-    filter 0.1s ease;
+  transition: transform 0.05s ease, box-shadow 0.05s ease, filter 0.1s ease;
 }
 
-button:hover {
-  filter: brightness(1.06);
-}
+button:hover { filter: brightness(1.06); }
 
 button:active {
   transform: translateY(1px);
@@ -259,50 +259,41 @@ h2 {
   margin-bottom: 6px;
 }
 
-.block-title-emoji {
-  font-size: 18px;
-}
-/* Row that contains the moon disc + text */
+.block-title-emoji { font-size: 18px; }
+
+/* Moon phase row */
 .moon-phase-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  flex-wrap: wrap; /* prevents overlap in landscape mode */
+  flex-wrap: wrap;
 }
 
-/* Container for planet_phase.js output */
 #moonPhaseDisc {
   position: relative;
-  width: 55px;   /* matches your chosen disc size */
+  width: 55px;
   height: 55px;
-  flex-shrink: 0; /* prevents shrinking in tight layouts */
+  flex-shrink: 0;
 }
 
-/* Inner disc inserted by the library */
 .moon-phase-disc {
-  width: 55px;      /* must match config.diameter in JS */
+  width: 55px;
   height: 55px;
   position: relative;
   border-radius: 50%;
 }
 
-/* Text block next to the moon disc */
 .moon-phase-text,
 #moonPhase {
   font-size: 13px;
   line-height: 1.4;
-  flex: 1; /* allows text to take remaining space */
-  min-width: 120px; /* prevents excessive wrapping on small screens */
+  flex: 1;
+  min-width: 120px;
 }
 
-/* Optional: slightly reduce text size in landscape */
 @media (orientation: landscape) {
-  .moon-phase-row {
-    gap: 8px;
-  }
-  #moonPhase {
-    font-size: 12px;
-  }
+  .moon-phase-row { gap: 8px; }
+  #moonPhase { font-size: 12px; }
 }
 
 /* Lists / monospace */
@@ -312,9 +303,7 @@ h2 {
   font-size: 13px;
 }
 
-.list li {
-  margin-bottom: 3px;
-}
+.list li { margin-bottom: 3px; }
 
 .mono {
   font-family: "SF Mono", ui-monospace, Menlo, Monaco, Consolas, "Liberation Mono",
@@ -323,13 +312,8 @@ h2 {
 }
 
 /* Status colors */
-.ok {
-  color: var(--ok);
-}
-
-.warn {
-  color: var(--warn);
-}
+.ok { color: var(--ok); }
+.warn { color: var(--warn); }
 
 /* Future nights table */
 .future-table {
@@ -337,6 +321,7 @@ h2 {
   border-collapse: collapse;
   margin-top: 4px;
   font-size: 13px;
+  table-layout: fixed;
 }
 
 .future-table thead {
@@ -357,21 +342,11 @@ h2 {
   color: var(--text-muted);
 }
 
-/* Make first column wider so weekend text fits in one line */
-.future-table colgroup col:nth-child(1) {
-  width: 46%;
-}
-.future-table colgroup col:nth-child(2) {
-  width: 29%;
-}
-.future-table colgroup col:nth-child(3) {
-  width: 25%;
-}
+.future-table colgroup col:nth-child(1) { width: 46%; }
+.future-table colgroup col:nth-child(2) { width: 29%; }
+.future-table colgroup col:nth-child(3) { width: 25%; }
 
-/* Night column */
-.night-col {
-  position: relative;
-}
+.night-col { position: relative; }
 
 .night-date {
   display: block;
@@ -380,7 +355,6 @@ h2 {
   margin-top: 2px;
 }
 
-/* Weekend label */
 .weekend-label {
   display: inline-block;
   margin-left: 4px;
@@ -388,24 +362,16 @@ h2 {
   color: #f2c94c;
 }
 
-/* Weekend row highlight */
-.weekend-row {
-  background: var(--weekend-bg);
-}
+.weekend-row { background: var(--weekend-bg); }
 
-.weekend-row .night-col {
-  border-left: 3px solid var(--weekend-border);
-}
+.weekend-row .night-col { border-left: 3px solid var(--weekend-border); }
 
-/* Filter match highlight (only time & total columns) */
-.filter-match-cell {
-  background: var(--filter-match-bg);
-}
+.filter-match-cell { background: var(--filter-match-bg); }
 
 /* Footer */
 .footer {
   margin-top: 4px;
-  font-size: 11px;
+  font-size: 14px;
   text-align: center;
   color: var(--text-muted);
 }
@@ -417,32 +383,300 @@ h2 {
     border-radius: 20px;
   }
 
-  .settings-title-main {
-    font-size: 20px;
-  }
-
-  .block {
-    padding: 9px 10px 10px;
-  }
+  .settings-title-main { font-size: 20px; }
+  .block { padding: 9px 10px 10px; }
 
   .future-table th,
-  .future-table td {
-    padding: 5px 6px;
-  }
+  .future-table td { padding: 5px 6px; }
 
-  .moon-phase-row {
-    align-items: flex-start;
-  }
-
+  .moon-phase-row { align-items: flex-start; }
   .moon-phase-row canvas {
     flex: 0 0 52px;
     height: 52px;
   }
 }
 
-/* Highlighted darkness interval (bigger & weekend color) */
+/* Highlighted darkness interval */
 .darkness-interval {
   font-size: 20px;
   font-weight: 600;
   color: var(--weekend-border);
 }
+
+/* Filter section (used inside tabs) */
+.filter-section {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-top: 12px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.04),
+    rgba(255,255,255,0.01)
+  );
+}
+
+.filter-section-title {
+  font-weight: 600;
+  font-size: 13px;
+  opacity: 0.9;
+  margin-bottom: 8px;
+  letter-spacing: 0.2px;
+}
+
+.good-night-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  box-shadow: 0 0 6px rgba(92, 227, 176, 0.9);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+/* ---------- TABS (Basic/Darkness/Weather) ---------- */
+
+.tabs{
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 12px;
+  padding: 6px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+}
+
+.tab-btn{
+  flex: 1 1 0;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(10,14,30,0.55);
+  color: rgba(245,247,255,0.9);
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: none;          /* override default button shadow */
+  white-space: nowrap;
+}
+
+.tab-btn:hover{
+  filter: brightness(1.06);
+}
+
+.tab-btn.active{
+  background: linear-gradient(135deg, rgba(78,160,255,0.85), rgba(165,123,255,0.85));
+  border-color: rgba(255,255,255,0.18);
+  color: #ffffff;
+}
+
+.tab-panel{
+  display: none;
+  animation: tabFade 160ms ease-out;
+}
+
+.tab-panel.active{
+  display: block;
+}
+
+@keyframes tabFade{
+  from { opacity: 0; transform: translateY(2px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility: hide elements but keep them in DOM (for future features) */
+.hidden{
+  display: none !important;
+}
+
+/* ---------- Weather table (stable on desktop + safe on phones) ---------- */
+
+.weather-title{
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.weather-scroll{
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #1f2635;
+  border-radius: 10px;
+}
+
+.weather-table{
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+  min-width: 540px;
+}
+
+.weather-table th{
+  text-align: left;
+  font-weight: 600;
+  color: rgba(245,247,255,0.85);
+}
+
+.weather-table th,
+.weather-table td{
+  padding: 6px 8px;
+  border-bottom: 1px solid #1f2635;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weather-table thead{
+  background: #101522;
+}
+
+.weather-table th:nth-child(1),
+.weather-table td:nth-child(1){ width: 92px; }
+.weather-table th:nth-child(2),
+.weather-table td:nth-child(2){ width: 66px; }
+.weather-table th:nth-child(3),
+.weather-table td:nth-child(3){ width: 74px; }
+.weather-table th:nth-child(4),
+.weather-table td:nth-child(4){ width: 86px; }
+.weather-table th:nth-child(5),
+.weather-table td:nth-child(5){ width: 64px; }
+.weather-table th:nth-child(6),
+.weather-table td:nth-child(6){ width: 132px; }
+
+.weather-table .sticky-col{
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #040813;
+  box-shadow: 1px 0 0 #1f2635;
+}
+
+.weather-table thead .sticky-col{
+  z-index: 3;
+  background: #101522;
+}
+
+.weather-date{ opacity: 0.75; }
+
+.weather-details-row td{
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 520px){
+  .weather-table{
+    font-size: 12px;
+    min-width: 520px;
+  }
+  .weather-table th,
+  .weather-table td{
+    padding: 5px 6px;
+  }
+}
+
+@media (max-width: 410px){
+  .weather-date{ display: none; }
+}
+
+/* ---------- Tabs (segmented control) ---------- */
+
+/* Hide helper */
+.hidden { display: none !important; }
+
+/* Container */
+.tabs{
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+}
+
+/* IMPORTANT: override global button styles for tabs */
+.tab-btn{
+  flex: 1 1 0;
+  min-width: 0;
+
+  /* reset "big button" look */
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: none;
+  padding: 8px 12px;
+  border-radius: 999px;
+
+  color: rgba(245,247,255,0.85);
+  font-size: 13px;
+  font-weight: 600;
+
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, transform 0.05s ease;
+}
+
+.tab-btn:hover{
+  background: rgba(255,255,255,0.06);
+}
+
+.tab-btn:active{
+  transform: translateY(1px);
+}
+
+.tab-btn.active{
+  background: rgba(106,141,255,0.28);
+  border-color: rgba(106,141,255,0.55);
+  color: #ffffff;
+}
+
+/* Panels */
+.tab-panel{ display: none; }
+.tab-panel.active{ display: block; }
+/* Softer action buttons in settings */
+.button-row button {
+  background: linear-gradient(180deg, #1b2338, #12192b);
+  color: #cfd8dc;
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: none;
+}
+
+.button-row button:hover {
+  background: linear-gradient(180deg, #232c46, #18203a);
+}
+
+.button-row button:active {
+  transform: translateY(1px);
+}
+
+/* Weather main toggle */
+.weather-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.weather-toggle label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+/* Weather parameters spacing */
+.weather-filter .controls {
+  margin-top: 4px;
+}
+
+/* Header card (title + menu) */
+.app-header-card{
+  padding: 14px 16px 12px;
+  margin-bottom: 14px; /* возвращаем “воздух” между шапкой и остальным */
+}
+
+
