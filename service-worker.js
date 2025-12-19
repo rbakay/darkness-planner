@@ -1,7 +1,7 @@
 // -------------------------------
 // Service Worker for Darkness Planner
 // Increase this version string to force an update:
-const CACHE_NAME = 'darkness-planner-v1.47';
+const CACHE_NAME = 'darkness-planner-v1.46';
 // -------------------------------
 
 const ASSETS = [
@@ -12,7 +12,6 @@ const ASSETS = [
   './lang-en.js',
   './lang-ru.js',
   './StarJs.min.js',
-  './weather.js',
   './manifest.webmanifest',
 
   // Icons used by the PWA

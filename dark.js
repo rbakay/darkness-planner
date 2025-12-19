@@ -1,28 +1,270 @@
-// Darkness Planner main script
-// Uses StarJs (StarJs.min.js) and SunCalc (CDN)
+/* dark.js — Darkness Planner main script
+   Uses StarJs (StarJs.min.js) and SunCalc (CDN)
+   Supports multiple named locations + per-location TZ cache (Open-Meteo timezone=auto)
+
+   IMPORTANT:
+   - Open via http:// (local server), not file:// (Safari will block fetch with Origin null)
+*/
 
 const UI_STRINGS = {
   en: window.DARK_LANG_EN,
   ru: window.DARK_LANG_RU
 };
 
-// Key for localStorage
 const STORAGE_KEY = 'darkness-planner-settings-v1';
 
-// Global UI settings
 const settings = {
   time24: true,
   dateFormat: 'DMY',
-  lang: 'en'
+  lang: 'en',
+  tz: null,            // effective IANA tz used for math + formatting
+  tzSource: 'browser', // 'browser' | 'auto'
+  tzAuto: null         // auto-detected tz from coordinates (Open-Meteo), if used
 };
+
+// ---------- Locations model ----------
+const LOC_CURRENT_ID = '__current__';
+
+const locationState = {
+  // Saved locations only (Current is virtual)
+  // [{ id, name, lat, lon, tz, tzSource, createdAt, updatedAt }]
+  locations: [],
+  selectedId: LOC_CURRENT_ID,
+
+  // Last known "current" coordinates (used when user returns to Current)
+  currentLat: null,
+  currentLon: null
+};
+
+function uid() {
+  return 'loc_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+
+function clampNum(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function parseNum(val, fallback) {
+  const v = parseFloat(String(val).replace(',', '.'));
+  return Number.isFinite(v) ? v : fallback;
+}
+
+function getLatLonFromInputs() {
+  const latEl = document.getElementById('lat');
+  const lonEl = document.getElementById('lon');
+  const lat = parseNum(latEl ? latEl.value : '', 0);
+  const lon = parseNum(lonEl ? lonEl.value : '', 0);
+  return {
+    lat: clampNum(lat, -90, 90),
+    lon: clampNum(lon, -180, 180)
+  };
+}
+
+function setInputsLatLon(lat, lon) {
+  const latEl = document.getElementById('lat');
+  const lonEl = document.getElementById('lon');
+  if (latEl) latEl.value = Number(lat).toFixed(4);
+  if (lonEl) lonEl.value = Number(lon).toFixed(4);
+}
+
+function setLocationHint(text) {
+  const el = document.getElementById('locationHint');
+  if (el) el.textContent = text || '';
+}
+
+function getL() {
+  return UI_STRINGS[settings.lang] || UI_STRINGS.en;
+}
+
+function getSelectedLocation() {
+  if (locationState.selectedId === LOC_CURRENT_ID) return null;
+  return locationState.locations.find(x => x.id === locationState.selectedId) || null;
+}
+
+function syncSelectedLocationIntoInputs() {
+  const sel = getSelectedLocation();
+  if (!sel) {
+    if (Number.isFinite(locationState.currentLat) && Number.isFinite(locationState.currentLon)) {
+      setInputsLatLon(locationState.currentLat, locationState.currentLon);
+    }
+    return;
+  }
+  setInputsLatLon(sel.lat, sel.lon);
+}
+
+function updateCurrentLatLonFromInputs() {
+  const { lat, lon } = getLatLonFromInputs();
+  locationState.currentLat = lat;
+  locationState.currentLon = lon;
+}
+
+function renderLocationSelect() {
+  const L = getL();
+  const selEl = document.getElementById('locationSelect');
+  if (!selEl) return;
+
+  const prev = locationState.selectedId || LOC_CURRENT_ID;
+  selEl.innerHTML = '';
+
+  const optCur = document.createElement('option');
+  optCur.value = LOC_CURRENT_ID;
+  optCur.textContent = L.locationCurrent || 'Current location';
+  selEl.appendChild(optCur);
+
+  for (const loc of locationState.locations) {
+    const opt = document.createElement('option');
+    opt.value = loc.id;
+    opt.textContent = loc.name || (L.locationUnnamed || 'Unnamed');
+    selEl.appendChild(opt);
+  }
+
+  const exists = prev === LOC_CURRENT_ID || locationState.locations.some(x => x.id === prev);
+  locationState.selectedId = exists ? prev : LOC_CURRENT_ID;
+  selEl.value = locationState.selectedId;
+
+  updateLocationButtonsState();
+}
+
+function updateLocationButtonsState() {
+  const btnSave = document.getElementById('btnSaveLocation');
+  const btnRename = document.getElementById('btnRenameLocation');
+  const btnDelete = document.getElementById('btnDeleteLocation');
+
+  const isCurrent = locationState.selectedId === LOC_CURRENT_ID;
+
+  if (btnSave) btnSave.disabled = false;
+  if (btnRename) btnRename.disabled = isCurrent;
+  if (btnDelete) btnDelete.disabled = isCurrent;
+}
+
+function onLocationSelectChange() {
+  const selEl = document.getElementById('locationSelect');
+  if (!selEl) return;
+
+  if (locationState.selectedId === LOC_CURRENT_ID) {
+    updateCurrentLatLonFromInputs();
+  }
+
+  locationState.selectedId = selEl.value || LOC_CURRENT_ID;
+
+  syncSelectedLocationIntoInputs();
+  updateLocationButtonsState();
+
+  const { lat, lon } = getLatLonFromInputs();
+
+  if (locationState.selectedId === LOC_CURRENT_ID) {
+    useBrowserTimeZone();
+    setTimeZoneStatus();
+  } else {
+    const loc = getSelectedLocation();
+    if (loc && loc.tz && isValidTimeZone(loc.tz)) {
+      settings.tzAuto = loc.tz;
+      settings.tz = loc.tz;
+      settings.tzSource = 'auto';
+      setTimeZoneStatus();
+    } else {
+      scheduleAutoTimeZone(lat, lon, loc);
+    }
+  }
+
+  setLocationHint('');
+  recalcAll(false);
+  saveSettingsToStorage();
+}
+
+function saveLocationAction() {
+  const L = getL();
+  const { lat, lon } = getLatLonFromInputs();
+
+  if (locationState.selectedId === LOC_CURRENT_ID) {
+    const name = prompt(L.locationPromptName || 'Location name:', L.locationDefaultNewName || 'New location');
+    if (!name) return;
+
+    const tzToStore =
+      (settings.tzSource === 'auto' && settings.tzAuto && isValidTimeZone(settings.tzAuto))
+        ? settings.tzAuto
+        : null;
+
+    const loc = {
+      id: uid(),
+      name: String(name).trim(),
+      lat,
+      lon,
+      tz: tzToStore,
+      tzSource: tzToStore ? 'auto' : null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    locationState.locations.push(loc);
+    locationState.selectedId = loc.id;
+
+    renderLocationSelect();
+    setLocationHint(L.locationSaved || 'Saved.');
+
+    if (!loc.tz) scheduleAutoTimeZone(lat, lon, loc);
+
+    recalcAll(false);
+    saveSettingsToStorage();
+    return;
+  }
+
+  const loc = getSelectedLocation();
+  if (!loc) return;
+
+  const coordsChanged = (Number(loc.lat) !== lat) || (Number(loc.lon) !== lon);
+
+  loc.lat = lat;
+  loc.lon = lon;
+  loc.updatedAt = Date.now();
+
+  if (coordsChanged) {
+    loc.tz = null;
+    loc.tzSource = null;
+    scheduleAutoTimeZone(lat, lon, loc);
+  }
+
+  renderLocationSelect();
+  setLocationHint(L.locationUpdated || 'Updated.');
+  recalcAll(false);
+  saveSettingsToStorage();
+}
+
+function renameLocationAction() {
+  const L = getL();
+  const loc = getSelectedLocation();
+  if (!loc) return;
+
+  const name = prompt(L.locationPromptRename || 'New name:', loc.name || '');
+  if (!name) return;
+
+  loc.name = String(name).trim();
+  loc.updatedAt = Date.now();
+
+  renderLocationSelect();
+  setLocationHint(L.locationRenamed || 'Renamed.');
+  saveSettingsToStorage();
+}
+
+function deleteLocationAction() {
+  const L = getL();
+  const loc = getSelectedLocation();
+  if (!loc) return;
+
+  const ok = confirm((L.locationConfirmDelete || 'Delete this location?') + `\n\n"${loc.name}"`);
+  if (!ok) return;
+
+  locationState.locations = locationState.locations.filter(x => x.id !== loc.id);
+  locationState.selectedId = LOC_CURRENT_ID;
+
+  renderLocationSelect();
+  setLocationHint(L.locationDeleted || 'Deleted.');
+  recalcAll(false);
+  saveSettingsToStorage();
+}
 
 // ---------- Weather integration (hooks, uses weather.js if present) ----------
-
-// Legacy fallback state (in case weather.js is not loaded)
-const WEATHER = {
-  enabled: false,
-  ready: false
-};
+const WEATHER = { enabled: false, ready: false };
 
 function weatherIsEnabled() {
   if (window.WeatherService && typeof WeatherService.isEnabled === 'function') {
@@ -33,31 +275,206 @@ function weatherIsEnabled() {
 
 function weatherMatchForNight(baseDate, darkData, filter) {
   if (!window.WeatherService) return null;
-  if (typeof WeatherService.readConfigFromUI === 'function') {
-    WeatherService.readConfigFromUI();
-  }
+  if (typeof WeatherService.readConfigFromUI === 'function') WeatherService.readConfigFromUI();
   if (!WeatherService.isEnabled || !WeatherService.isEnabled()) return null;
   if (!WeatherService.isReady || !WeatherService.isReady()) return null;
   if (typeof WeatherService.evaluateNight !== 'function') return null;
   return WeatherService.evaluateNight(baseDate, darkData, filter);
 }
 
-// ---------- Generic helpers ----------
+// Update "Weather updated" UI line using WeatherService cache metadata.
+// Requires: <div id="weatherUpdateStatus"></div>
+function updateWeatherUpdateStatus() {
+  const el = document.getElementById('weatherUpdateStatus');
+  if (!el) return;
 
-function pad2(n) {
-  return n < 10 ? '0' + n : '' + n;
+  const L = getL();
+
+  if (!window.WeatherService || !WeatherService.isReady || !WeatherService.isReady()) {
+    el.textContent = L.weatherNoData || '—';
+    return;
+  }
+
+  const ms = (typeof WeatherService.getLastUpdateMs === 'function')
+    ? WeatherService.getLastUpdateMs()
+    : null;
+
+  if (!ms) {
+    el.textContent = L.weatherNoData || '—';
+    return;
+  }
+
+  const fromCache = (typeof WeatherService.isFromCache === 'function')
+    ? (WeatherService.isFromCache() === true)
+    : false;
+
+  const dt = new Date(ms);
+  const datePart = fmtDate(dt);
+  const timePart = fmtTime(dt);
+
+  const cachedTag = fromCache ? (L.weatherCachedTag || '') : '';
+
+  el.textContent = `${L.weatherUpdatedLabel || 'Weather updated'}: ${datePart}, ${timePart}${cachedTag}`;
+}
+
+// ---------- Generic helpers ----------
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+// ---------- Time zone helpers ----------
+function getBrowserTimeZone() {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; }
+  catch (e) { return 'UTC'; }
+}
+
+function isValidTimeZone(tz) {
+  if (!tz) return false;
+  try { new Intl.DateTimeFormat('en-US', { timeZone: tz }).format(new Date()); return true; }
+  catch (e) { return false; }
+}
+
+// Positive means tz is ahead of UTC.
+function tzOffsetMinutes(tz, dUtc) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit'
+  });
+
+  const parts = dtf.formatToParts(dUtc);
+  const map = {};
+  for (const p of parts) if (p.type !== 'literal') map[p.type] = p.value;
+
+  const asIfUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second)
+  );
+
+  return Math.round((asIfUtc - dUtc.getTime()) / 60000);
+}
+
+function makeZonedInstant(y, m, d, hh, mm, ss, tz) {
+  const guessUtc = new Date(Date.UTC(y, m - 1, d, hh, mm, ss || 0, 0));
+  const offMin = tzOffsetMinutes(tz, guessUtc);
+  return new Date(guessUtc.getTime() - offMin * 60000);
+}
+
+function getZonedYMD(date, tz) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+
+  const parts = dtf.formatToParts(date);
+  const map = {};
+  for (const p of parts) if (p.type !== 'literal') map[p.type] = p.value;
+
+  return { y: Number(map.year), m: Number(map.month), d: Number(map.day) };
+}
+
+function getZonedDow(date, tz) {
+  const ymd = getZonedYMD(date, tz);
+  return new Date(Date.UTC(ymd.y, ymd.m - 1, ymd.d)).getUTCDay();
+}
+
+function atZonedMidnightYMD(y, m, d, tz) {
+  return makeZonedInstant(y, m, d, 0, 0, 0, tz);
 }
 
 function atLocalMidnight(date) {
-  const d = new Date(date.getTime());
-  d.setHours(0, 0, 0, 0);
-  return d;
+  const tz = settings.tz || getBrowserTimeZone();
+  const ymd = getZonedYMD(date, tz);
+  return atZonedMidnightYMD(ymd.y, ymd.m, ymd.d, tz);
 }
 
 function shiftDays(date, delta) {
-  const d = new Date(date.getTime());
-  d.setDate(d.getDate() + delta);
-  return d;
+  const tz = settings.tz || getBrowserTimeZone();
+  const ymd = getZonedYMD(date, tz);
+
+  const pivot = new Date(Date.UTC(ymd.y, ymd.m - 1, ymd.d, 12, 0, 0, 0));
+  pivot.setUTCDate(pivot.getUTCDate() + delta);
+
+  const y2 = pivot.getUTCFullYear();
+  const m2 = pivot.getUTCMonth() + 1;
+  const d2 = pivot.getUTCDate();
+
+  return atZonedMidnightYMD(y2, m2, d2, tz);
+}
+
+function useBrowserTimeZone() {
+  settings.tzAuto = null;
+  settings.tzSource = 'browser';
+  settings.tz = getBrowserTimeZone();
+}
+
+function setTimeZoneStatus() {
+  const el = document.getElementById('tzStatus');
+  if (!el) return;
+
+  const tz = settings.tz || getBrowserTimeZone();
+
+  const src =
+    settings.tzSource === 'auto'
+      ? (settings.lang === 'ru' ? 'Авто (по координатам)' : 'Auto (by coordinates)')
+      : (settings.lang === 'ru' ? 'Браузер' : 'Browser');
+
+  el.textContent = `${settings.lang === 'ru' ? 'Часовой пояс' : 'Time zone'}: ${tz} (${src})`;
+}
+
+async function fetchTimeZoneFromMeteo(lat, lon) {
+  const params = new URLSearchParams({
+    latitude: lat.toString(),
+    longitude: lon.toString(),
+    hourly: 'cloud_cover',
+    timezone: 'auto',
+    forecast_days: '1'
+  });
+  const url = 'https://api.open-meteo.com/v1/forecast?' + params.toString();
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const json = await res.json();
+  return json && json.timezone ? String(json.timezone) : null;
+}
+
+let _tzDebounce = null;
+let _lastTzQueryKey = null;
+
+// Detect tz; cache into location if provided
+function scheduleAutoTimeZone(lat, lon, persistToLocation) {
+  clearTimeout(_tzDebounce);
+  _tzDebounce = setTimeout(async () => {
+    const key = `${lat.toFixed(3)},${lon.toFixed(3)}`;
+    if (_lastTzQueryKey === key) return;
+    _lastTzQueryKey = key;
+
+    const browserTz = getBrowserTimeZone();
+    const tz = await fetchTimeZoneFromMeteo(lat, lon).catch(() => null);
+
+    if (tz && isValidTimeZone(tz)) {
+      if (tz !== browserTz) {
+        settings.tzAuto = tz;
+        settings.tz = tz;
+        settings.tzSource = 'auto';
+      } else {
+        useBrowserTimeZone();
+      }
+
+      if (persistToLocation && typeof persistToLocation === 'object') {
+        persistToLocation.tz = tz;
+        persistToLocation.tzSource = 'auto';
+        persistToLocation.updatedAt = Date.now();
+      }
+    } else {
+      useBrowserTimeZone();
+    }
+
+    setTimeZoneStatus();
+    recalcAll(false);
+  }, 400);
 }
 
 function diffMinutes(a, b) {
@@ -65,51 +482,65 @@ function diffMinutes(a, b) {
 }
 
 function fmtDate(d) {
-  const yyyy = d.getFullYear();
-  const mm = pad2(d.getMonth() + 1);
-  const dd = pad2(d.getDate());
+  if (!d || isNaN(d.getTime())) return '—';
+  const tz = settings.tz || getBrowserTimeZone();
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+
+  const parts = dtf.formatToParts(d);
+  const map = {};
+  for (const p of parts) if (p.type !== 'literal') map[p.type] = p.value;
+
+  const yyyy = map.year, mm = map.month, dd = map.day;
+
   switch (settings.dateFormat) {
-    case 'MDY':
-      return `${mm}/${dd}/${yyyy}`;
-    case 'YMD':
-      return `${yyyy}-${mm}-${dd}`;
-    case 'DMY2':
-      return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
+    case 'MDY':  return `${mm}/${dd}/${yyyy}`;
+    case 'YMD':  return `${yyyy}-${mm}-${dd}`;
+    case 'DMY2': return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
     case 'DMY':
-    default:
-      return `${dd}.${mm}.${yyyy}`;
+    default:     return `${dd}.${mm}.${yyyy}`;
   }
 }
 
 function fmtDateShort(d) {
-  const yyyy = d.getFullYear();
-  const mm = pad2(d.getMonth() + 1);
-  const dd = pad2(d.getDate());
+  if (!d || isNaN(d.getTime())) return '—';
+  const tz = settings.tz || getBrowserTimeZone();
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    year: 'numeric', month: '2-digit', day: '2-digit'
+  });
+
+  const parts = dtf.formatToParts(d);
+  const map = {};
+  for (const p of parts) if (p.type !== 'literal') map[p.type] = p.value;
+
+  const yyyy = map.year, mm = map.month, dd = map.day;
+
   switch (settings.dateFormat) {
-    case 'MDY':
-      return `${mm}/${dd}`;
-    case 'YMD':
-      return `${mm}-${dd}`;
-    case 'DMY2':
-      return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
+    case 'MDY':  return `${mm}/${dd}`;
+    case 'YMD':  return `${mm}-${dd}`;
+    case 'DMY2': return `${dd}.${mm}.${String(yyyy).slice(-2)}`;
     case 'DMY':
-    default:
-      return `${dd}.${mm}`;
+    default:     return `${dd}.${mm}`;
   }
 }
 
 function fmtTime(d) {
   if (!d || isNaN(d.getTime())) return '—';
-  const h = d.getHours();
-  const m = d.getMinutes();
-  if (settings.time24) {
-    return pad2(h) + ':' + pad2(m);
-  } else {
-    let suffix = h >= 12 ? 'PM' : 'AM';
-    let h12 = h % 12;
-    if (h12 === 0) h12 = 12;
-    return h12 + ':' + pad2(m) + ' ' + suffix;
-  }
+  const tz = settings.tz || getBrowserTimeZone();
+
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: !settings.time24
+  });
+
+  return dtf.format(d);
 }
 
 function fmtDuration(mins) {
@@ -139,11 +570,10 @@ function labelHour(h) {
   return h12 + ':00 ' + suffix;
 }
 
-// ---------- Units (wind/temp placeholders) ----------
-
+// ---------- Units ----------
 function getWindUnitKey() {
   const sel = document.getElementById('weatherWindUnits');
-  return sel ? (sel.value || 'ms') : 'ms'; // 'ms' | 'kmh' | 'mph'
+  return sel ? (sel.value || 'ms') : 'ms';
 }
 
 function windUnitLabelText(unitKey) {
@@ -173,8 +603,7 @@ function updateWindUnitLabelUI() {
   span.textContent = windUnitLabelText(getWindUnitKey());
 }
 
-// ---------- Tabs (Basic / Darkness / Weather) ----------
-
+// ---------- Tabs ----------
 let currentTab = 'basic';
 
 function initTabs() {
@@ -191,9 +620,7 @@ function initTabs() {
       btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
 
-    panels.forEach(p => {
-      p.classList.toggle('active', p.dataset.panel === tabName);
-    });
+    panels.forEach(p => p.classList.toggle('active', p.dataset.panel === tabName));
 
     if (persist) {
       try {
@@ -208,12 +635,11 @@ function initTabs() {
   tabButtons.forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.preventDefault();
-      e.stopPropagation(); // чтобы не закрывать settings-card
+      e.stopPropagation();
       activate(btn.dataset.tab || 'basic');
     });
   });
 
-  // Keyboard support (Left/Right)
   tabButtons.forEach((btn, idx) => {
     btn.addEventListener('keydown', (e) => {
       if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
@@ -225,7 +651,6 @@ function initTabs() {
     });
   });
 
-  // Restore from storage if present
   let desired = 'basic';
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -240,7 +665,6 @@ function initTabs() {
 }
 
 // ---------- Settings + language ----------
-
 function updateSettingsFromUI() {
   const t24 = document.getElementById('time24');
   const df = document.getElementById('dateFormat');
@@ -274,12 +698,17 @@ function saveSettingsToStorage() {
     const wWindUnits = document.getElementById('weatherWindUnits');
     const wTempUnits = document.getElementById('weatherTempUnits');
 
+    if (locationState.selectedId === LOC_CURRENT_ID) {
+      updateCurrentLatLonFromInputs();
+    }
+
     const data = {
       lat: latEl ? (parseFloat(latEl.value) || 0) : 0,
       lon: lonEl ? (parseFloat(lonEl.value) || 0) : 0,
       time24: !!(time24El && time24El.checked),
       dateFormat: dateFormatSel ? (dateFormatSel.value || 'DMY') : 'DMY',
       lang: langSel ? (langSel.value || 'en') : 'en',
+
       filterFromHour: fromSel ? fromSel.value : '21',
       filterToHour: toSel ? toSel.value : '2',
       filterDuration: durEl ? (durEl.value || '0') : '0',
@@ -292,11 +721,18 @@ function saveSettingsToStorage() {
       weatherMaxWind: wW ? (wW.value ?? '6') : '6',
       weatherMaxHumidity: wH ? (wH.value ?? '70') : '70',
       weatherMinConsec: wN ? (wN.value ?? '3') : '3',
-
       weatherWindUnits: wWindUnits ? (wWindUnits.value || 'ms') : 'ms',
       weatherTempUnits: wTempUnits ? (wTempUnits.value || 'c') : 'c',
 
-      activeTab: currentTab || 'basic'
+      tzSource: settings.tzSource || 'browser',
+      tzAuto: settings.tzAuto || null,
+
+      activeTab: currentTab || 'basic',
+
+      locations: Array.isArray(locationState.locations) ? locationState.locations : [],
+      selectedLocationId: locationState.selectedId || LOC_CURRENT_ID,
+      currentLat: Number.isFinite(locationState.currentLat) ? locationState.currentLat : null,
+      currentLon: Number.isFinite(locationState.currentLon) ? locationState.currentLon : null
     };
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -309,11 +745,50 @@ function loadSettingsFromStorage() {
     if (!raw) return;
     const data = JSON.parse(raw);
 
-    const latEl = document.getElementById('lat');
-    const lonEl = document.getElementById('lon');
+    if (Array.isArray(data.locations)) {
+      locationState.locations = data.locations
+        .filter(x => x && typeof x === 'object')
+        .map(x => ({
+          id: String(x.id || uid()),
+          name: String(x.name || '').trim() || 'Location',
+          lat: clampNum(parseNum(x.lat, 0), -90, 90),
+          lon: clampNum(parseNum(x.lon, 0), -180, 180),
+          tz: x.tz ? String(x.tz) : null,
+          tzSource: x.tzSource ? String(x.tzSource) : null,
+          createdAt: Number.isFinite(x.createdAt) ? x.createdAt : null,
+          updatedAt: Number.isFinite(x.updatedAt) ? x.updatedAt : null
+        }));
+    } else {
+      const oldLat = (typeof data.lat === 'number') ? data.lat : 0;
+      const oldLon = (typeof data.lon === 'number') ? data.lon : 0;
+      locationState.locations = [{
+        id: uid(),
+        name: 'Home',
+        lat: clampNum(oldLat, -90, 90),
+        lon: clampNum(oldLon, -180, 180),
+        tz: null,
+        tzSource: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }];
+    }
 
-    if (latEl && typeof data.lat === 'number') latEl.value = data.lat.toFixed(4);
-    if (lonEl && typeof data.lon === 'number') lonEl.value = data.lon.toFixed(4);
+    locationState.selectedId = data.selectedLocationId ? String(data.selectedLocationId) : LOC_CURRENT_ID;
+    locationState.currentLat = Number.isFinite(data.currentLat) ? data.currentLat : null;
+    locationState.currentLon = Number.isFinite(data.currentLon) ? data.currentLon : null;
+
+    renderLocationSelect();
+    syncSelectedLocationIntoInputs();
+
+    if (locationState.selectedId === LOC_CURRENT_ID) {
+      if (!Number.isFinite(locationState.currentLat) || !Number.isFinite(locationState.currentLon)) {
+        if (typeof data.lat === 'number' && typeof data.lon === 'number') {
+          locationState.currentLat = clampNum(data.lat, -90, 90);
+          locationState.currentLon = clampNum(data.lon, -180, 180);
+          setInputsLatLon(locationState.currentLat, locationState.currentLon);
+        }
+      }
+    }
 
     const time24El = document.getElementById('time24');
     const dateFormatSel = document.getElementById('dateFormat');
@@ -325,18 +800,9 @@ function loadSettingsFromStorage() {
     const hlEl = document.getElementById('filterHighlight');
     const dowSel = document.getElementById('dowFilter');
 
-    if (time24El && ('time24' in data)) {
-      time24El.checked = !!data.time24;
-      settings.time24 = !!data.time24;
-    }
-    if (dateFormatSel && data.dateFormat) {
-      dateFormatSel.value = data.dateFormat;
-      settings.dateFormat = data.dateFormat;
-    }
-    if (langSel && data.lang) {
-      langSel.value = data.lang;
-      settings.lang = data.lang;
-    }
+    if (time24El && ('time24' in data)) { time24El.checked = !!data.time24; settings.time24 = !!data.time24; }
+    if (dateFormatSel && data.dateFormat) { dateFormatSel.value = data.dateFormat; settings.dateFormat = data.dateFormat; }
+    if (langSel && data.lang) { langSel.value = data.lang; settings.lang = data.lang; }
 
     if (fromSel && typeof data.filterFromHour === 'string') fromSel.value = data.filterFromHour;
     if (toSel && typeof data.filterToHour === 'string') toSel.value = data.filterToHour;
@@ -358,13 +824,26 @@ function loadSettingsFromStorage() {
     if (wW && data.weatherMaxWind != null) wW.value = String(data.weatherMaxWind);
     if (wH && data.weatherMaxHumidity != null) wH.value = String(data.weatherMaxHumidity);
     if (wN && data.weatherMinConsec != null) wN.value = String(data.weatherMinConsec);
-
     if (wWindUnits && data.weatherWindUnits) wWindUnits.value = String(data.weatherWindUnits);
     if (wTempUnits && data.weatherTempUnits) wTempUnits.value = String(data.weatherTempUnits);
 
     updateWindUnitLabelUI();
 
+    const browserTz = getBrowserTimeZone();
+    const storedSource = data.tzSource ? String(data.tzSource) : 'browser';
+    const storedAuto = data.tzAuto ? String(data.tzAuto) : null;
+
+    if (storedSource === 'auto' && storedAuto && isValidTimeZone(storedAuto) && storedAuto !== browserTz) {
+      settings.tzSource = 'auto';
+      settings.tzAuto = storedAuto;
+      settings.tz = storedAuto;
+    } else {
+      useBrowserTimeZone();
+    }
+
     if (data.activeTab) currentTab = String(data.activeTab);
+
+    renderLocationSelect();
   } catch (e) {}
 }
 
@@ -381,11 +860,19 @@ function applyLanguage() {
     else el.textContent = val;
   };
 
-  // Core header texts
   setText('i_appSubtitle', L.appSubtitle, true);
   setText('i_topHint', L.topHint, true);
 
-  // Basic section labels/buttons
+  setText('i_locationsTitle', L.locationsTitle || 'Locations');
+  setText('i_labelLocation', L.locationLabel || 'Location');
+
+  const btnSave = document.getElementById('btnSaveLocation');
+  const btnRename = document.getElementById('btnRenameLocation');
+  const btnDelete = document.getElementById('btnDeleteLocation');
+  if (btnSave) btnSave.textContent = L.locationBtnSave || 'Save';
+  if (btnRename) btnRename.textContent = L.locationBtnRename || 'Rename';
+  if (btnDelete) btnDelete.textContent = L.locationBtnDelete || 'Delete';
+
   setText('i_labelLat', L.labelLat);
   setText('i_labelLon', L.labelLon);
   setText('i_labelStartDate', L.labelStartDate);
@@ -398,7 +885,6 @@ function applyLanguage() {
   setText('i_labelDateFormat', L.labelDateFormat);
   setText('i_labelLanguage', L.labelLanguage);
 
-  // Darkness filter section labels
   setText('i_filterSubtitle', L.filterSubtitle);
   setText('i_labelFilterFrom', L.labelFilterFrom);
   setText('i_labelFilterTo', L.labelFilterTo);
@@ -414,37 +900,29 @@ function applyLanguage() {
   setText('i_filterHideLabel', L.filterHideLabel);
   setText('i_filterHighlightLabel', L.filterHighlightLabel);
 
-  // In your index.html the hint has id="i_minDurationHint"
-  // (older builds used i_filterHint)
   setText('i_minDurationHint', L.filterHint);
   setText('i_filterHint', L.filterHint);
 
-  // Blocks
   setText('i_blockDarkTitle', L.blockDarkTitle);
   setText('i_blockSunTitle', L.blockSunTitle);
   setText('i_blockMoonTitle', L.blockMoonTitle);
   setText('i_blockPhaseTitle', L.blockPhaseTitle);
 
-  // Table
   setText('i_futureTitle', L.futureTitle);
   setText('i_thNight', L.thNight);
   setText('i_thDarkness', L.thDarkness);
   setText('i_thTotal', L.thTotal);
 
-  // Tabs (IDs are in index.html)
   setText('i_tabBasic', L.tabBasic || 'Basic');
   setText('i_tabDarkness', L.tabDarkness || 'Darkness');
   setText('i_tabWeather', L.tabWeather || 'Weather');
 
-  // Units (IDs in index.html)
   setText('i_unitsTitle', L.unitsTitle || 'Units');
   setText('i_labelWindUnits', L.weatherWindUnitsLabel || L.labelWindUnits || 'Wind units');
   setText('i_labelTempUnits', L.weatherTempUnitsLabel || L.labelTempUnits || 'Temperature units');
 
-  // Section titles (IDs in index.html)
   setText('i_darkFilterTitle', L.darknessFilterTitle || L.darkFilterTitle || 'Darkness filter');
 
-  // Weather filter (IDs in index.html)
   setText('i_weatherFilterTitle', L.weatherFilterTitle || 'Weather filter');
   setText('i_weatherEnableHint', L.weatherEnabledLabel || L.weatherEnableHint || '');
   setText('i_weatherMaxCloud', L.weatherMaxCloudLabel || L.weatherMaxCloud || '');
@@ -457,8 +935,16 @@ function applyLanguage() {
   if (legend) legend.innerHTML = L.nightLegend;
 
   setText('versionLabel', L.versionLabel);
+
+  setTimeZoneStatus();
+  renderLocationSelect();
+
+  if (window.ToolsTransfer && typeof ToolsTransfer.applyLanguage === 'function') {
+    ToolsTransfer.applyLanguage(settings.lang);
+  }
 }
 
+// ---------- Filter labels/config ----------
 function updateFilterHourLabels() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
@@ -466,12 +952,8 @@ function updateFilterHourLabels() {
 
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
 
-  const startLabel =
-    L.filterAstrStart ||
-    (settings.lang === 'ru' ? 'Начало астр. ночи' : 'Astronomical night start');
-  const endLabel =
-    L.filterAstrEnd ||
-    (settings.lang === 'ru' ? 'Конец астр. ночи' : 'Astronomical night end');
+  const startLabel = L.filterAstrStart || (settings.lang === 'ru' ? 'Начало астр. ночи' : 'Astronomical night start');
+  const endLabel   = L.filterAstrEnd   || (settings.lang === 'ru' ? 'Конец астр. ночи' : 'Astronomical night end');
 
   [fromSel, toSel].forEach(sel => {
     for (const opt of sel.options) {
@@ -532,8 +1014,7 @@ function getFilterConfig() {
   };
 }
 
-// ---------- Astronomy based on StarJS ----------
-
+// ---------- Astronomy ----------
 function getEventsForDate(midnightLocal, latDeg, lonDeg) {
   if (!window.StarJs || !StarJs.Solar || !StarJs.Time) return null;
   const mjd0 = StarJs.Time.time2mjd(midnightLocal);
@@ -707,7 +1188,6 @@ function getFilterOverlapMinutes(baseDate, darknessIntervals, sun, filter) {
 }
 
 // ---------- Selected night panel ----------
-
 function updateSelectedNight(baseDate, lat, lon) {
   const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
   const nightEnd = shiftDays(baseDate, 1);
@@ -720,9 +1200,7 @@ function updateSelectedNight(baseDate, lat, lon) {
   const darkNoteEl = document.getElementById('darknessNote');
   const filterInfoEl = document.getElementById('filterInfo');
 
-  if (titleEl) {
-    titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(baseDate)} → ${fmtDate(nightEnd)}`;
-  }
+  if (titleEl) titleEl.textContent = `${L.nightHeaderPrefix}${fmtDate(baseDate)} → ${fmtDate(nightEnd)}`;
 
   const sun = getSunTimesForNight(baseDate, lat, lon);
   if (sunInfoEl) sunInfoEl.innerHTML = '';
@@ -774,16 +1252,24 @@ function updateSelectedNight(baseDate, lat, lon) {
 
   if (phaseEl) {
     if (window.SunCalc && SunCalc.getMoonIllumination) {
+      const tz = settings.tz || getBrowserTimeZone();
       const now = new Date();
-      const obsTime = new Date(
-        baseDate.getFullYear(),
-        baseDate.getMonth(),
-        baseDate.getDate(),
-        now.getHours(),
-        now.getMinutes(),
-        now.getSeconds(),
-        now.getMilliseconds()
-      );
+
+      const nowParts = new Intl.DateTimeFormat('en-US', {
+        timeZone: tz,
+        hour12: false,
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      }).formatToParts(now);
+
+      const nowMap = {};
+      for (const p of nowParts) if (p.type !== 'literal') nowMap[p.type] = p.value;
+
+      const hh = Number(nowMap.hour);
+      const mm = Number(nowMap.minute);
+      const ss = Number(nowMap.second);
+
+      const ymd = getZonedYMD(baseDate, tz);
+      const obsTime = makeZonedInstant(ymd.y, ymd.m, ymd.d, hh, mm, ss, tz);
 
       const illum = SunCalc.getMoonIllumination(obsTime);
       const frac = Math.round(illum.fraction * 100);
@@ -866,7 +1352,9 @@ function updateSelectedNight(baseDate, lat, lon) {
 
   let text = '';
 
-  const dowThis = baseDate.getDay();
+  const tz = settings.tz || getBrowserTimeZone();
+  const dowThis = getZonedDow(baseDate, tz);
+
   const dayMatchThis = !filter.allowedDays || filter.allowedDays.includes(dowThis);
   let matchMinutes = 0;
   let timeOkThis = true;
@@ -905,7 +1393,7 @@ function updateSelectedNight(baseDate, lat, lon) {
     const darkNext = getFullDarknessForNight(d, lat, lon);
     if (!darkNext.sun.astrStart || !darkNext.sun.astrEnd || darkNext.darknessIntervals.length === 0) continue;
 
-    const dow = d.getDay();
+    const dow = getZonedDow(d, tz);
     const dayOK = !filter.allowedDays || filter.allowedDays.includes(dow);
 
     let timeOK = true;
@@ -915,10 +1403,7 @@ function updateSelectedNight(baseDate, lat, lon) {
       timeOK = mm >= filter.minMinutes;
     }
 
-    if (dayOK && timeOK) {
-      found = { daysAhead: i, date: d, minutes: mm };
-      break;
-    }
+    if (dayOK && timeOK) { found = { daysAhead: i, date: d, minutes: mm }; break; }
   }
 
   if (found) {
@@ -944,7 +1429,6 @@ function updateSelectedNight(baseDate, lat, lon) {
 }
 
 // ---------- Future 30 nights table ----------
-
 function updateFutureTable(startDate, lat, lon) {
   const tbody = document.getElementById('futureTableBody');
   if (!tbody) return;
@@ -958,6 +1442,8 @@ function updateFutureTable(startDate, lat, lon) {
   const hasDayFilter = !!(filter.allowedDays && filter.allowedDays.length);
   const anyFilterActive = hasTimeFilter || hasDayFilter;
 
+  const tz = settings.tz || getBrowserTimeZone();
+
   for (let i = 0; i < 30; i++) {
     const base = shiftDays(startDate, i);
     const data = getFullDarknessForNight(base, lat, lon);
@@ -966,7 +1452,7 @@ function updateFutureTable(startDate, lat, lon) {
     if (data.darknessIntervals.length > 0) darkText = formatIntervals(data.darknessIntervals);
     const totalText = data.totalMinutes > 0 ? fmtDuration(data.totalMinutes) : '—';
 
-    const dow = base.getDay();
+    const dow = getZonedDow(base, tz);
     let weekendLabel = '';
     if (dow === 6) weekendLabel = L.weekendSat;
     else if (dow === 0) weekendLabel = L.weekendSun;
@@ -1012,7 +1498,6 @@ function updateFutureTable(startDate, lat, lon) {
 
     tbody.appendChild(tr);
 
-    // Click to toggle hourly details for this night
     tr.style.cursor = 'pointer';
     tr.addEventListener('click', () => {
       const next = tr.nextElementSibling;
@@ -1037,11 +1522,34 @@ function updateFutureTable(startDate, lat, lon) {
         ? WeatherService.getAllAstrNightHours(data)
         : [];
 
+      // Build a set of hours that pass BOTH darkness filter window AND weather thresholds
+      const passSet = new Set();
+
+      if (typeof WeatherService.evaluateNight === 'function') {
+        const filter = getFilterConfig();
+        const evalRes = WeatherService.evaluateNight(base, data, filter);
+
+        if (evalRes && Array.isArray(evalRes.hours)) {
+          const cfg = WeatherService.cfg || {};
+
+          for (const h of evalRes.hours) {
+            const ok =
+              typeof h.cloud === "number" && h.cloud <= (cfg.maxCloud ?? 10) &&
+              typeof h.windMs === "number" && h.windMs <= (cfg.maxWind ?? 6) &&
+              typeof h.hum === "number" && h.hum <= (cfg.maxHumidity ?? 70);
+
+            if (ok && h.iso) {
+              passSet.add(h.iso);
+            }
+          }
+        }
+      }
+
+      const L = UI_STRINGS[settings.lang] || UI_STRINGS.en;
+
       const titleDetails =
         L.weatherDetailsTitle ||
-        (settings.lang === 'ru'
-          ? 'Погода (часы астрономической ночи)'
-          : 'Weather (astronomical night hours)');
+        (settings.lang === 'ru' ? 'Погода (часы астрономической ночи)' : 'Weather (astronomical night hours)');
 
       const noDataText =
         L.weatherNoData ||
@@ -1057,23 +1565,22 @@ function updateFutureTable(startDate, lat, lon) {
       const colSeeing = L.colSeeing || (settings.lang === 'ru' ? 'Синг' : 'Seeing');
 
       if (!allHours.length) {
-        td.innerHTML =
-          `<div class="weather-title">${titleDetails}</div>` +
-          `<div>${noDataText}</div>`;
+        td.innerHTML = `<div class="weather-title">${titleDetails}</div><div>${noDataText}</div>`;
       } else {
         const unitKey = getWindUnitKey();
 
         const rows = allHours.map(h => {
           const aodText = (typeof h.aod === 'number') ? h.aod.toFixed(3) : '—';
-const seeLabelKey = h.seeingLabelKey || '';
-const seeLabel =
-  (seeLabelKey && L.seeingLabels && L.seeingLabels[seeLabelKey])
-    ? L.seeingLabels[seeLabelKey]
-    : (h.seeingLabel || ''); // fallback если вдруг старый weather.js
 
-const seeText = (typeof h.seeingScore === 'number')
-  ? `${h.seeingScore}${seeLabel ? ` (${seeLabel})` : ''}`
-  : '—';
+          const seeLabelKey = h.seeingLabelKey || '';
+          const seeLabel =
+            (seeLabelKey && L.seeingLabels && L.seeingLabels[seeLabelKey])
+              ? L.seeingLabels[seeLabelKey]
+              : (h.seeingLabel || '');
+
+          const seeText = (typeof h.seeingScore === 'number')
+            ? `${h.seeingScore}${seeLabel ? ` (${seeLabel})` : ''}`
+            : '—';
 
           const windVal = (typeof h.windMs === 'number') ? windMsToUnit(h.windMs, unitKey) : null;
           const windText = (typeof windVal === 'number') ? windVal.toFixed(1) : '—';
@@ -1084,8 +1591,10 @@ const seeText = (typeof h.seeingScore === 'number')
           const tStr = fmtTime(h.time);
           const dStr = fmtDateShort(h.time);
 
+          const passClass = (h && h.iso && passSet.has(h.iso)) ? ' wx-pass' : '';
+
           return `<tr>
-            <td class="sticky-col">${tStr} <span class="weather-date">(${dStr})</span></td>
+            <td class="sticky-col${passClass}">${tStr} <span class="weather-date">(${dStr})</span></td>
             <td>${cloudText}</td>
             <td>${windText}</td>
             <td>${humText}</td>
@@ -1120,31 +1629,45 @@ const seeText = (typeof h.seeingScore === 'number')
   }
 }
 
-// ---------- Core recalculation ----------
+// ---------- Core recalculation (network-aware) ----------
+function recalcUIOnly(baseDate, lat, lon) {
+  updateSelectedNight(baseDate, lat, lon);
+  updateFutureTable(baseDate, lat, lon);
+  updateWeatherUpdateStatus();
+}
 
-function recalcAll() {
+// Recalculate everything.
+// Weather fetch is throttled inside weather.js; here we additionally only *request* fetch on:
+//  - first load (no weather data yet), OR
+//  - explicit user click on "Recalculate" (forceWeatherFetch=true)
+function recalcAll(forceWeatherFetch = false) {
+  if (!settings.tz) useBrowserTimeZone();
+
   updateSettingsFromUI();
   updateWindUnitLabelUI();
   applyLanguage();
   updateFilterHourLabels();
 
-  const lat = parseFloat((document.getElementById('lat') || {}).value) || 0;
-  const lon = parseFloat((document.getElementById('lon') || {}).value) || 0;
+  const { lat, lon } = getLatLonFromInputs();
 
   const dateStr = (document.getElementById('startDate') || {}).value;
   let baseDate;
+
   if (dateStr) {
     const [y, m, d] = dateStr.split('-').map(Number);
-    baseDate = atLocalMidnight(new Date(y, m - 1, d));
+    const tz = settings.tz || getBrowserTimeZone();
+    baseDate = atZonedMidnightYMD(y, m, d, tz);
   } else {
     baseDate = atLocalMidnight(new Date());
   }
 
-  // Weather: load forecast when enabled (non-blocking)
+  // Always render immediately (uses existing cached weather, if any)
+  recalcUIOnly(baseDate, lat, lon);
+
+  // Weather: avoid frequent API calls. Fetch only when needed.
   if (window.WeatherService && typeof WeatherService.readConfigFromUI === 'function') {
     WeatherService.readConfigFromUI();
 
-    // Keep wind threshold in WeatherService in m/s if cfg exists
     const windUnits = getWindUnitKey();
     const wMax = document.getElementById('weatherMaxWind');
     if (wMax && WeatherService.cfg) {
@@ -1152,24 +1675,31 @@ function recalcAll() {
       if (typeof ms === 'number' && isFinite(ms)) WeatherService.cfg.maxWind = ms;
     }
 
-    if (WeatherService.isEnabled && WeatherService.isEnabled()) {
-      WeatherService.load(lat, lon)
-        .then(() => {
-          updateSelectedNight(baseDate, lat, lon);
-          updateFutureTable(baseDate, lat, lon);
-        })
-        .catch(() => {});
-    }
-  }
+    const enabled = WeatherService.isEnabled && WeatherService.isEnabled();
+    const ready = WeatherService.isReady && WeatherService.isReady();
 
-  updateSelectedNight(baseDate, lat, lon);
-  updateFutureTable(baseDate, lat, lon);
+    if (enabled) {
+      const shouldFetch = forceWeatherFetch || !ready;
+
+      if (shouldFetch) {
+        // weather.js should implement throttling + offline cache.
+        WeatherService.load(lat, lon, { force: forceWeatherFetch })
+          .then(() => recalcUIOnly(baseDate, lat, lon))
+          .catch(() => updateWeatherUpdateStatus());
+      } else {
+        updateWeatherUpdateStatus();
+      }
+    } else {
+      updateWeatherUpdateStatus();
+    }
+  } else {
+    updateWeatherUpdateStatus();
+  }
 
   saveSettingsToStorage();
 }
 
 // ---------- Initialization ----------
-
 function initFilterTimeSelects() {
   const fromSel = document.getElementById('filterFromHour');
   const toSel = document.getElementById('filterToHour');
@@ -1231,11 +1761,27 @@ function initSettingsAccordion() {
   }
 }
 
+function initLocationUI() {
+  const sel = document.getElementById('locationSelect');
+  const btnSave = document.getElementById('btnSaveLocation');
+  const btnRename = document.getElementById('btnRenameLocation');
+  const btnDelete = document.getElementById('btnDeleteLocation');
+
+  if (sel) sel.addEventListener('change', onLocationSelectChange);
+  if (btnSave) btnSave.addEventListener('click', (e) => { e.preventDefault(); saveLocationAction(); });
+  if (btnRename) btnRename.addEventListener('click', (e) => { e.preventDefault(); renameLocationAction(); });
+  if (btnDelete) btnDelete.addEventListener('click', (e) => { e.preventDefault(); deleteLocationAction(); });
+
+  renderLocationSelect();
+  updateLocationButtonsState();
+}
+
 function initEvents() {
   const btnCalc = document.getElementById('btnCalc');
   const btnGeo = document.getElementById('btnGeo');
 
-  if (btnCalc) btnCalc.addEventListener('click', recalcAll);
+  // IMPORTANT: only this button forces weather refresh
+  if (btnCalc) btnCalc.addEventListener('click', () => recalcAll(true));
 
   if (btnGeo) {
     btnGeo.addEventListener('click', () => {
@@ -1246,11 +1792,32 @@ function initEvents() {
       }
       navigator.geolocation.getCurrentPosition(
         pos => {
-          const latEl = document.getElementById('lat');
-          const lonEl = document.getElementById('lon');
-          if (latEl) latEl.value = pos.coords.latitude.toFixed(4);
-          if (lonEl) lonEl.value = pos.coords.longitude.toFixed(4);
-          recalcAll();
+          const lat = clampNum(pos.coords.latitude, -90, 90);
+          const lon = clampNum(pos.coords.longitude, -180, 180);
+
+          setInputsLatLon(lat, lon);
+
+          if (locationState.selectedId === LOC_CURRENT_ID) {
+            locationState.currentLat = lat;
+            locationState.currentLon = lon;
+
+            useBrowserTimeZone();
+            setTimeZoneStatus();
+          } else {
+            const loc = getSelectedLocation();
+            if (loc) {
+              const changed = (Number(loc.lat) !== lat) || (Number(loc.lon) !== lon);
+              loc.lat = lat;
+              loc.lon = lon;
+              loc.updatedAt = Date.now();
+              if (changed) { loc.tz = null; loc.tzSource = null; }
+              renderLocationSelect();
+            }
+            scheduleAutoTimeZone(lat, lon, getSelectedLocation());
+          }
+
+          recalcAll(false);
+          saveSettingsToStorage();
         },
         () => alert(L.geoFailed)
       );
@@ -1260,7 +1827,7 @@ function initEvents() {
   const bind = (id, ev) => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener(ev, recalcAll);
+    el.addEventListener(ev, () => recalcAll(false));
   };
 
   bind('time24', 'change');
@@ -1276,7 +1843,53 @@ function initEvents() {
   bind('lon', 'change');
   bind('startDate', 'change');
 
-  // Weather UI
+  const latEl = document.getElementById('lat');
+  const lonEl = document.getElementById('lon');
+
+  if (latEl) {
+    latEl.addEventListener('input', () => {
+      if (locationState.selectedId === LOC_CURRENT_ID) updateCurrentLatLonFromInputs();
+
+      const lat = parseFloat(latEl.value);
+      const lon = parseFloat((lonEl || {}).value);
+      if (isFinite(lat) && isFinite(lon)) {
+        if (locationState.selectedId !== LOC_CURRENT_ID) {
+          const loc = getSelectedLocation();
+          if (loc) {
+            loc.lat = clampNum(lat, -90, 90);
+            loc.lon = clampNum(lon, -180, 180);
+            loc.updatedAt = Date.now();
+            loc.tz = null;
+            loc.tzSource = null;
+          }
+          scheduleAutoTimeZone(lat, lon, getSelectedLocation());
+        }
+      }
+    });
+  }
+
+  if (lonEl) {
+    lonEl.addEventListener('input', () => {
+      if (locationState.selectedId === LOC_CURRENT_ID) updateCurrentLatLonFromInputs();
+
+      const lat = parseFloat((latEl || {}).value);
+      const lon = parseFloat(lonEl.value);
+      if (isFinite(lat) && isFinite(lon)) {
+        if (locationState.selectedId !== LOC_CURRENT_ID) {
+          const loc = getSelectedLocation();
+          if (loc) {
+            loc.lat = clampNum(lat, -90, 90);
+            loc.lon = clampNum(lon, -180, 180);
+            loc.updatedAt = Date.now();
+            loc.tz = null;
+            loc.tzSource = null;
+          }
+          scheduleAutoTimeZone(lat, lon, getSelectedLocation());
+        }
+      }
+    });
+  }
+
   const weatherIds = [
     'weatherEnabled',
     'weatherMaxCloud',
@@ -1289,10 +1902,9 @@ function initEvents() {
   weatherIds.forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    el.addEventListener(id === 'weatherEnabled' ? 'change' : 'input', recalcAll);
+    el.addEventListener(id === 'weatherEnabled' ? 'change' : 'input', () => recalcAll(false));
   });
 
-  // Wind units conversion: keep same physical threshold
   const windUnitsSel = document.getElementById('weatherWindUnits');
   const windMaxInput = document.getElementById('weatherMaxWind');
 
@@ -1313,13 +1925,12 @@ function initEvents() {
 
       windUnitsSel.dataset.prev = next;
       updateWindUnitLabelUI();
-      recalcAll();
+      recalcAll(false);
     });
   }
 }
 
 // ---------- PWA: service worker ----------
-
 function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker
@@ -1330,14 +1941,39 @@ function registerServiceWorker() {
 
 // DOM ready
 window.addEventListener('DOMContentLoaded', () => {
+  useBrowserTimeZone();
+
   initStartDate();
   initFilterTimeSelects();
+
   loadSettingsFromStorage();
+
+  initLocationUI();
+
   updateWindUnitLabelUI();
   applyLanguage();
   initSettingsAccordion();
-  initTabs();      // <-- tabs ON
+  initTabs();
   initEvents();
-  recalcAll();
+
+  if (!Number.isFinite(locationState.currentLat) || !Number.isFinite(locationState.currentLon)) {
+    const { lat, lon } = getLatLonFromInputs();
+    locationState.currentLat = lat;
+    locationState.currentLon = lon;
+  }
+
+  // Apply cached tz for saved location before first calc
+  if (locationState.selectedId !== LOC_CURRENT_ID) {
+    const loc = getSelectedLocation();
+    if (loc && loc.tz && isValidTimeZone(loc.tz)) {
+      settings.tzAuto = loc.tz;
+      settings.tz = loc.tz;
+      settings.tzSource = 'auto';
+    }
+  }
+  setTimeZoneStatus();
+
+  // First run: will fetch weather only if enabled and no cached data yet (inside recalcAll)
+  recalcAll(false);
   registerServiceWorker();
 });

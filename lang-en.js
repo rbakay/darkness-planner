@@ -1,6 +1,6 @@
 // English UI strings for Darkness Planner
 window.DARK_LANG_EN = {
-  appSubtitle: 'Location, night date and time/date formats.',
+  appSubtitle: 'Find the darkest nights',
   topHint:
     'Full darkness: astronomical night (Sun below −18°) while the Moon is below the horizon.<br>' +
     'Night: selected date <b>D</b> → <b>D+1</b> (for example, night 29→30).',
@@ -16,6 +16,27 @@ window.DARK_LANG_EN = {
   timeFormatHint: '24 hours (off — AM/PM)',
   labelDateFormat: 'Date format',
   labelLanguage: 'Language / Язык',
+
+  // Locations
+  locationsTitle: 'Locations',
+  locationLabel: 'Location',
+  locationCurrent: 'Current location',
+  locationUnnamed: 'Unnamed',
+
+  locationBtnSave: 'Save',
+  locationBtnRename: 'Rename',
+  locationBtnDelete: 'Delete',
+
+  locationPromptName: 'Location name:',
+  locationDefaultNewName: 'New location',
+  locationPromptRename: 'New name:',
+  locationConfirmDelete: 'Delete this location?',
+
+  locationSaved: 'Saved.',
+  locationUpdated: 'Updated.',
+  locationRenamed: 'Renamed.',
+  locationDeleted: 'Deleted.',
+  locationTzDetecting: 'Detecting time zone…',
 
   // Tabs
   tabBasic: 'Basic',
@@ -140,12 +161,38 @@ window.DARK_LANG_EN = {
   colAOD: 'AOD',
   colSeeing: 'Seeing',
   
-    seeingLabels: {
+  // Tools (Export / Import)
+toolsTitle: 'Tools (Export / Import)',
+toolsBtnExport: 'Export',
+toolsBtnCopy: 'Copy',
+toolsBtnDownload: 'Download .txt',
+toolsBtnImport: 'Import',
+toolsBtnReset: 'Reset to defaults',
+toolsPlaceholder: 'Paste exported text here to import…',
+
+toolsStatusNoData: 'Nothing to export yet. Use the app once, then try again.',
+toolsStatusExported: 'Exported.',
+toolsStatusNothingToCopy: 'Nothing to copy.',
+toolsStatusCopied: 'Copied.',
+toolsStatusCopyFailed: 'Copy failed. Please select and copy manually.',
+toolsStatusDownloaded: 'Downloaded.',
+toolsStatusImported: 'Imported. Reloading…',
+toolsStatusReset: 'Reset. Reloading…',
+toolsConfirmReset: 'Reset all app settings to defaults?',
+toolsStatusFileLoaded: 'File loaded. Now press Import.',
+toolsStatusFileLoadFailed: 'Failed to read file.',
+toolsStatusImportFailed: 'Import failed: ',
+
+weatherUpdatedLabel: "Weather updated",
+weatherCachedTag: " (cached)",
+weatherNoData: "Weather: no data",
+
+  seeingLabels: {
     excellent: 'Excellent',
     good: 'Good',
     average: 'Average',
     poor: 'Poor'
   },
 
-  versionLabel: 'Darkness Planner · v1.47'
+  versionLabel: 'Darkness Planner · v1.48'
 };

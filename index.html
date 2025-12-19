@@ -25,6 +25,7 @@
   <script src="lang-ru.js"></script>
 
   <script defer src="weather.js"></script>
+  <script src="settings-io.js"></script>
   <script defer src="dark.js"></script>
 </head>
 
@@ -33,8 +34,14 @@
     <div class="card settings-card collapsed" id="settingsCard">
       <div class="settings-header">
         <div class="settings-title-block">
-          <div class="settings-title-main" id="i_appTitle">Darkness Planner</div>
-          <div class="settings-title-sub" id="i_appSubtitle"></div>
+         <div class="app-header">
+  <span class="app-star" aria-hidden="true">✧</span>
+
+  <div class="app-header-text">
+    <div class="settings-title-main" id="i_appTitle">Darkness Planner</div>
+    <div class="settings-title-sub" id="i_appSubtitle">Find the darkest nights</div>
+  </div>
+</div>
         </div>
         <div class="menu-icon" id="menuIcon">
           <div class="menu-icon-inner">
@@ -55,87 +62,139 @@
           <button class="tab-btn" id="i_tabWeather" type="button" data-tab="weather" role="tab" aria-selected="false"></button>
         </div>
 
-        <!-- ========== BASIC ========== -->
-        <div class="tab-panel active" data-panel="basic" role="tabpanel">
+<!-- ========== BASIC ========== -->
+<div class="tab-panel active" data-panel="basic" role="tabpanel">
 
-          <!-- Coordinates + date (MOVED HERE) -->
-          <div class="controls" style="margin-top: 8px;">
-            <div class="field">
-              <label for="lat" id="i_labelLat"></label>
-              <input id="lat" type="number" step="0.0001" value="35.2271">
-            </div>
-            <div class="field">
-              <label for="lon" id="i_labelLon"></label>
-              <input id="lon" type="number" step="0.0001" value="-80.8431">
-            </div>
-            <div class="field">
-              <label for="startDate" id="i_labelStartDate"></label>
-              <input id="startDate" type="date">
-            </div>
-          </div>
+  <!-- Locations (NEW) -->
+  <div class="filter-section" style="margin-top: 8px;">
+    <div class="filter-section-title" id="i_locationsTitle">Locations</div>
 
-          <!-- Buttons row (MOVED HERE) -->
-          <div class="button-row">
-            <button id="btnGeo" type="button"></button>
-            <button id="btnCalc" type="button"></button>
-          </div>
+    <div class="controls">
+      <div class="field">
+        <label for="locationSelect" id="i_labelLocation">Location</label>
+        <select id="locationSelect"></select>
+      </div>
+    </div>
 
-          <!-- Time/date format + language -->
-          <div class="controls">
-            <div class="field">
-              <label id="i_labelTimeFormat"></label>
-              <div class="toggle-line">
-                <input id="time24" type="checkbox" checked>
-                <span id="i_timeFormatHint"></span>
-              </div>
-            </div>
+    <div class="button-row" style="margin-top: 8px;">
+      <button id="btnSaveLocation" type="button">Save</button>
+      <button id="btnRenameLocation" type="button">Rename</button>
+      <button id="btnDeleteLocation" type="button">Delete</button>
+    </div>
 
-            <div class="field">
-              <label for="dateFormat" id="i_labelDateFormat"></label>
-              <select id="dateFormat">
-                <option value="DMY" selected>DD.MM.YYYY</option>
-                <option value="DMY2">DD.MM.YY</option>
-                <option value="MDY">MM/DD/YYYY</option>
-                <option value="YMD">YYYY-MM-DD</option>
-              </select>
-            </div>
+    <div class="muted" style="margin-top: 8px;" id="locationHint"></div>
+  </div>
 
-            <div class="field">
-              <label for="langSelect" id="i_labelLanguage"></label>
-              <select id="langSelect">
-                <option value="en" selected>English</option>
-                <option value="ru">Русский</option>
-              </select>
-            </div>
-          </div>
+  <!-- Coordinates + date -->
+  <div class="controls" style="margin-top: 8px;">
+    <div class="field">
+      <label for="lat" id="i_labelLat"></label>
+      <input id="lat" type="number" step="0.0001" value="35.2271">
+    </div>
+    <div class="field">
+      <label for="lon" id="i_labelLon"></label>
+      <input id="lon" type="number" step="0.0001" value="-80.8431">
+    </div>
+    <div class="field">
+      <label for="startDate" id="i_labelStartDate"></label>
+      <input id="startDate" type="date">
+    </div>
+  </div>
 
-          <!-- Units -->
-          <div class="filter-section" style="margin-top: 10px;">
-            <div class="filter-section-title" id="i_unitsTitle"></div>
+  <!-- Timezone status (already present) -->
+  <div class="muted" style="margin-top:12px;" id="tzStatus"></div>
 
-            <div class="controls">
-              <div class="field">
-                <label for="weatherWindUnits" id="i_labelWindUnits"></label>
-                <select id="weatherWindUnits">
-                  <option value="ms" selected>m/s</option>
-                  <option value="kmh">km/h</option>
-                  <option value="mph">mph</option>
-                </select>
-              </div>
+  <!-- Buttons row -->
+  <div class="button-row" style="margin-top: 12px;">
+    <button id="btnGeo" type="button"></button>
+    <button id="btnCalc" type="button"></button>
+  </div>
 
-              <!-- Keep temperature units in DOM, but hidden for now -->
-              <div class="field hidden" id="tempUnitsField">
-                <label for="weatherTempUnits" id="i_labelTempUnits"></label>
-                <select id="weatherTempUnits">
-                  <option value="c" selected>°C</option>
-                  <option value="f">°F</option>
-                </select>
-              </div>
-            </div>
+  <!-- Time/date format + language -->
+  <div class="controls">
+    <div class="field">
+      <label id="i_labelTimeFormat"></label>
+      <div class="toggle-line">
+        <input id="time24" type="checkbox" checked>
+        <span id="i_timeFormatHint"></span>
+      </div>
+    </div>
 
-          </div>
-        </div>
+    <div class="field">
+      <label for="dateFormat" id="i_labelDateFormat"></label>
+      <select id="dateFormat">
+        <option value="DMY" selected>DD.MM.YYYY</option>
+        <option value="DMY2">DD.MM.YY</option>
+        <option value="MDY">MM/DD/YYYY</option>
+        <option value="YMD">YYYY-MM-DD</option>
+      </select>
+    </div>
 
+    <div class="field">
+      <label for="langSelect" id="i_labelLanguage"></label>
+      <select id="langSelect">
+        <option value="en" selected>English</option>
+        <option value="ru">Русский</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Units -->
+  <div class="filter-section" style="margin-top: 10px;">
+    <div class="filter-section-title" id="i_unitsTitle"></div>
+
+    <div class="controls">
+      <div class="field">
+        <label for="weatherWindUnits" id="i_labelWindUnits"></label>
+        <select id="weatherWindUnits">
+          <option value="ms" selected>m/s</option>
+          <option value="kmh">km/h</option>
+          <option value="mph">mph</option>
+        </select>
+      </div>
+
+      <!-- Keep temperature units in DOM, but hidden for now -->
+      <div class="field hidden" id="tempUnitsField">
+        <label for="weatherTempUnits" id="i_labelTempUnits"></label>
+        <select id="weatherTempUnits">
+          <option value="c" selected>°C</option>
+          <option value="f">°F</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tools / Advanced (rarely used) -->
+  <details class="tools-details" id="toolsDetails">
+<summary class="tools-summary">
+  <span class="tools-summary-icon" aria-hidden="true"></span>
+  <span id="i_toolsTitle">Tools (Export / Import)</span>
+</summary>
+
+    <div class="tools-box">
+      <div class="tools-row">
+        <button type="button" id="btnExportSettings">Export</button>
+        <button type="button" id="btnCopySettings">Copy</button>
+        <button type="button" id="btnDownloadSettings">Download .txt</button>
+      </div>
+
+      <textarea id="settingsTransfer" rows="4" placeholder="Paste exported text here to import..."></textarea>
+
+      <div class="tools-row tools-row--file">
+        <label class="file-label">
+          <input type="file" id="settingsFile" accept=".txt,.json,text/plain,application/json" />
+        </label>
+        <span class="tools-status" id="settingsStatus"></span>
+      </div>
+
+      <div class="tools-row tools-row--actions">
+        <button type="button" id="btnImportSettings">Import</button>
+        <button type="button" id="btnResetSettings">Reset to defaults</button>
+      </div>
+    </div>
+  </details>
+
+</div>
         <!-- ========== DARKNESS ========== -->
         <div class="tab-panel" data-panel="darkness" role="tabpanel">
           <div class="subtitle" style="margin-top: 8px;" id="i_filterSubtitle"></div>
@@ -181,8 +240,6 @@
 
             <div class="muted" style="margin-top: 6px;" id="i_filterHint"></div>
           </div>
-
-       
         </div>
 
         <!-- ========== WEATHER ========== -->
@@ -191,42 +248,42 @@
             <div class="filter-section-title" id="i_weatherFilterTitle"></div>
 
             <div class="weather-filter">
-
-  <div class="toggle-line weather-toggle">
-    <input id="weatherEnabled" type="checkbox">
-    <label for="weatherEnabled" id="i_weatherEnableHint"></label>
-  </div>
-
-  <div class="controls">
-    <!-- ВСЕ параметры погоды тут -->
-              <div class="field">
-                <label for="weatherMaxCloud" id="i_weatherMaxCloud"></label>
-                <input id="weatherMaxCloud" type="number" min="0" max="100" value="10">
+              <div class="toggle-line weather-toggle">
+                <input id="weatherEnabled" type="checkbox">
+                <label for="weatherEnabled" id="i_weatherEnableHint"></label>
               </div>
 
-              <div class="field">
-                <label for="weatherMaxWind" id="i_weatherMaxWind"></label>
-                <input id="weatherMaxWind" type="number" min="0" step="0.5" value="6">
+              <div class="controls">
+                <div class="field">
+                  <label for="weatherMaxCloud" id="i_weatherMaxCloud"></label>
+                  <input id="weatherMaxCloud" type="number" min="0" max="100" value="10">
+                </div>
+
+                <div class="field">
+                  <label for="weatherMaxWind" id="i_weatherMaxWind"></label>
+                  <input id="weatherMaxWind" type="number" min="0" step="0.5" value="6">
+                </div>
+
+                <div class="field">
+                  <label for="weatherMaxHumidity" id="i_weatherMaxHumidity"></label>
+                  <input id="weatherMaxHumidity" type="number" min="0" max="100" value="70">
+                </div>
+
+                <div class="field">
+                  <label for="weatherMinConsec" id="i_weatherMinConsec"></label>
+                  <input id="weatherMinConsec" type="number" min="1" step="1" value="3">
+                </div>
               </div>
 
-              <div class="field">
-                <label for="weatherMaxHumidity" id="i_weatherMaxHumidity"></label>
-                <input id="weatherMaxHumidity" type="number" min="0" max="100" value="70">
-              </div>
-
-              <div class="field">
-                <label for="weatherMinConsec" id="i_weatherMinConsec"></label>
-                <input id="weatherMinConsec" type="number" min="1" step="1" value="3">
-              </div>
+              <div class="muted" style="margin-top: 6px;" id="i_weatherHint"></div>
             </div>
-
-            <div class="muted" style="margin-top: 6px;" id="i_weatherHint"></div>
           </div>
+          <div id="weatherUpdateStatus" class="wx-update"></div>
         </div>
 
       </div>
     </div>
- </div>
+
     <!-- SELECTED NIGHT -->
     <div class="card">
       <h2 id="nightTitle">Night</h2>
@@ -294,9 +351,10 @@
     </div>
 
     <div class="footer" id="versionLabel">
-      Darkness Planner · v1.47
+      Darkness Planner · v1.48
       <br>
     </div>
-  </div>
+
+  </div> <!-- /.layout -->
 </body>
 </html>

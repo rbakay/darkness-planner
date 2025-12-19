@@ -1,6 +1,6 @@
 // Russian UI strings for Darkness Planner
 window.DARK_LANG_RU = {
-  appSubtitle: 'Местоположение, дата ночи и формат времени/даты.',
+  appSubtitle: 'Найдите самые тёмные ночи',
   topHint:
     'Полная темнота: астрономическая ночь (Солнце ниже −18°), пока Луна под горизонтом.<br>' +
     'Ночь: выбранная дата <b>D</b> → <b>D+1</b> (например, ночь 29→30).',
@@ -16,6 +16,28 @@ window.DARK_LANG_RU = {
   timeFormatHint: '24 часа (снять галочку — AM/PM)',
   labelDateFormat: 'Формат даты',
   labelLanguage: 'Язык / Language',
+
+  // Locations
+  locationsTitle: 'Локации',
+  locationLabel: 'Локация',
+  locationCurrent: 'Текущее место',
+  locationUnnamed: 'Без названия',
+
+  locationBtnSave: 'Сохранить',
+  locationBtnRename: 'Переименовать',
+  locationBtnDelete: 'Удалить',
+
+  locationPromptName: 'Название локации:',
+  locationDefaultNewName: 'Новая локация',
+  locationPromptRename: 'Новое название:',
+  locationConfirmDelete: 'Удалить эту локацию?',
+
+  locationSaved: 'Сохранено.',
+  locationUpdated: 'Обновлено.',
+  locationRenamed: 'Переименовано.',
+  locationDeleted: 'Удалено.',
+  locationTzDetecting: 'Определяем часовой пояс…',
+  
 
   // Tabs
   tabBasic: 'Базовое',
@@ -134,11 +156,37 @@ window.DARK_LANG_RU = {
 
   // Hourly table columns
   colTime: 'Время',
-  colCloud: 'Облака %',
+  colCloud: 'Обл. %',
   colWind: 'Ветер',
-  colHumidity: 'Влажность %',
+  colHumidity: 'Влаж. %',
   colAOD: 'AOD',
   colSeeing: 'Синг',
+
+// Tools (Export / Import)
+toolsTitle: 'Инструменты (Экспорт / Импорт)',
+toolsBtnExport: 'Экспорт',
+toolsBtnCopy: 'Копировать',
+toolsBtnDownload: 'Скачать .txt',
+toolsBtnImport: 'Импорт',
+toolsBtnReset: 'Сбросить настройки',
+toolsPlaceholder: 'Вставьте текст экспорта сюда для импорта…',
+
+toolsStatusNoData: 'Пока нечего экспортировать. Сначала воспользуйтесь приложением и попробуйте снова.',
+toolsStatusExported: 'Экспортировано.',
+toolsStatusNothingToCopy: 'Нечего копировать.',
+toolsStatusCopied: 'Скопировано.',
+toolsStatusCopyFailed: 'Не удалось скопировать. Выделите текст и скопируйте вручную.',
+toolsStatusDownloaded: 'Скачано.',
+toolsStatusImported: 'Импортировано. Перезагрузка…',
+toolsStatusReset: 'Сброшено. Перезагрузка…',
+toolsConfirmReset: 'Сбросить все настройки приложения к значениям по умолчанию?',
+toolsStatusFileLoaded: 'Файл загружен. Теперь нажмите «Импорт».',
+toolsStatusFileLoadFailed: 'Не удалось прочитать файл.',
+toolsStatusImportFailed: 'Ошибка импорта: ',
+
+weatherUpdatedLabel: "Погода обновлена",
+weatherCachedTag: " (кеш)",
+weatherNoData: "Погода: нет данных",
 
   seeingLabels: {
     excellent: 'Отлично',
@@ -147,5 +195,5 @@ window.DARK_LANG_RU = {
     poor: 'Плохо'
   },
 
-  versionLabel: 'Darkness Planner · v1.47'
+  versionLabel: 'Darkness Planner · v1.48'
 };
