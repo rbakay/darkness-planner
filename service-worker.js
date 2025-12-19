@@ -9,6 +9,8 @@ const ASSETS = [
   './index.html',
   './dark.css',
   './dark.js',
+  './weather.js',
+  './settings-io.js',
   './lang-en.js',
   './lang-ru.js',
   './StarJs.min.js',
