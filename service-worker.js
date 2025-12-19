@@ -11,6 +11,7 @@ const ASSETS = [
   './dark.js',
   './weather.js',
   './settings-io.js',
+  './planet_phase.js',
   './lang-en.js',
   './lang-ru.js',
   './StarJs.min.js',
