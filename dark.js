@@ -474,7 +474,7 @@ function scheduleAutoTimeZone(lat, lon, persistToLocation) {
 
     setTimeZoneStatus();
     recalcAll(false);
-  }, 400);
+  }, 2500);
 }
 
 function diffMinutes(a, b) {
@@ -1853,19 +1853,21 @@ function initEvents() {
       const lat = parseFloat(latEl.value);
       const lon = parseFloat((lonEl || {}).value);
       if (isFinite(lat) && isFinite(lon)) {
-        if (locationState.selectedId !== LOC_CURRENT_ID) {
-          const loc = getSelectedLocation();
-          if (loc) {
-            loc.lat = clampNum(lat, -90, 90);
-            loc.lon = clampNum(lon, -180, 180);
-            loc.updatedAt = Date.now();
-            loc.tz = null;
-            loc.tzSource = null;
-          }
-          scheduleAutoTimeZone(lat, lon, getSelectedLocation());
-        }
-      }
-    });
+  if (locationState.selectedId === LOC_CURRENT_ID) {
+    // Current: also auto-detect timezone when coordinates change
+    scheduleAutoTimeZone(lat, lon, null);
+  } else {
+    const loc = getSelectedLocation();
+    if (loc) {
+      loc.lat = clampNum(lat, -90, 90);
+      loc.lon = clampNum(lon, -180, 180);
+      loc.updatedAt = Date.now();
+      loc.tz = null;
+      loc.tzSource = null;
+    }
+    scheduleAutoTimeZone(lat, lon, getSelectedLocation());
+  }
+}     });
   }
 
   if (lonEl) {
@@ -1874,19 +1876,22 @@ function initEvents() {
 
       const lat = parseFloat((latEl || {}).value);
       const lon = parseFloat(lonEl.value);
-      if (isFinite(lat) && isFinite(lon)) {
-        if (locationState.selectedId !== LOC_CURRENT_ID) {
-          const loc = getSelectedLocation();
-          if (loc) {
-            loc.lat = clampNum(lat, -90, 90);
-            loc.lon = clampNum(lon, -180, 180);
-            loc.updatedAt = Date.now();
-            loc.tz = null;
-            loc.tzSource = null;
-          }
-          scheduleAutoTimeZone(lat, lon, getSelectedLocation());
-        }
-      }
+if (isFinite(lat) && isFinite(lon)) {
+  if (locationState.selectedId === LOC_CURRENT_ID) {
+    // Current: also auto-detect timezone when coordinates change
+    scheduleAutoTimeZone(lat, lon, null);
+  } else {
+    const loc = getSelectedLocation();
+    if (loc) {
+      loc.lat = clampNum(lat, -90, 90);
+      loc.lon = clampNum(lon, -180, 180);
+      loc.updatedAt = Date.now();
+      loc.tz = null;
+      loc.tzSource = null;
+    }
+    scheduleAutoTimeZone(lat, lon, getSelectedLocation());
+  }
+}
     });
   }
 
